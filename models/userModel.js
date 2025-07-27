@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
   appleId: { type: String, unique: true, sparse: true },
 
   // Role Management
-  role: { type: String, enum: ['mother', 'trainer', 'admin'], default: 'mother' },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
 
   // Subscription
   subscriptionType: { type: String, enum: ['free', 'basic', 'premium'], default: 'free' },

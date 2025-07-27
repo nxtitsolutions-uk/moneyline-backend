@@ -7,6 +7,7 @@ const Profile = require("../models/profileModel");
 const Invitation = require("../models/invitationModel");
 const { generateOtp } = require("../utils/generateOtp");
 const { sendOtpEmail } = require("../services/emailService");
+const { applyReferralToUser } = require("../controllers/invitationController");
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -18,55 +19,59 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // Register a new user
 exports.signup = async (req, res) => {
   try {
-    const { email, role = "", referralToken,deviceToken } = req.body;
+    const { email, password, confirmPassword, role = "", deviceToken } = req.body;
 
     if (!email) return res.status(400).json({ message: "Email is required." });
+    if (password && password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match." });
+    }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(409).json({ message: "User already exists." });
+    if (existingUser) return res.status(409).json({ message: "User already exists." });
 
     const { otp, expiry } = generateOtp();
 
-    const user = await User.create({
-      email,
-      role,
-      canCreatePassword: true,
-      otp,
-      otpExpiry: expiry,
-      deviceToken:deviceToken,
-    });
+    // ✅ Send OTP before creating user
+    const otpSent = await sendOtpEmail(email, otp, "signup").then(() => true).catch(() => false);
 
-
-    if (referralToken) {
-      const invitation = await Invitation.findOne({ token: referralToken });
-
-      if (invitation && !invitation.accepted) {
-        invitation.accepted = true;
-        invitation.acceptedAt = new Date();
-        invitation.acceptedUserId = user._id;
-        await invitation.save();
-      }
+    if (!otpSent) {
+      return res.status(500).json({ message: "Could not send OTP email. Try again later." });
     }
 
-    await sendOtpEmail(email, otp, "signup");
+    // ✅ Create user after OTP email success
+    const userData = {
+      email,
+      role,
+      otp,
+      otpExpiry: expiry,
+      canCreatePassword: !password,
+      deviceToken,
+    };
 
-    return res
-      .status(201)
-      .json({ message: "Signup successful, OTP sent to email." });
+    if (password) {
+      userData.password = await bcrypt.hash(password, 10);
+    }
+
+    await User.create(userData);
+
+    return res.status(201).json({
+      message: "Signup successful, OTP sent to email.",
+    });
   } catch (error) {
     console.error("Signup error:", error);
     return res.status(500).json({ message: "Server error during signup." });
   }
 };
 
-// Verify signup OTP and activate user account
+// ✅ Verify OTP & Apply Referral (if passed from frontend)
 exports.verifyOtpForSignup = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, referralToken } = req.body;
     const user = await User.findOne({ email });
-    if (!user || user.isVerified)
+
+    if (!user || user.isVerified) {
       return res.status(400).json({ message: "Invalid or already verified." });
+    }
 
     if (user.otp !== otp || user.otpExpiry < new Date()) {
       return res.status(400).json({ message: "Invalid or expired OTP." });
@@ -76,6 +81,12 @@ exports.verifyOtpForSignup = async (req, res) => {
     user.otp = undefined;
     user.otpExpiry = undefined;
     await user.save();
+
+    // ✅ Apply referral only after verification
+    if (referralToken) {
+      console.log("Applying referral:", referralToken);
+      await applyReferralToUser(user._id, referralToken);
+    }
 
     const accessToken = generateAccessToken(user);
     const refreshToken = await generateRefreshToken(user);
@@ -97,6 +108,7 @@ exports.verifyOtpForSignup = async (req, res) => {
     res.status(500).json({ message: "Server error during OTP verification." });
   }
 };
+
 
 // Resend OTP for signup verification
 exports.resendSignupOtp = async (req, res) => {

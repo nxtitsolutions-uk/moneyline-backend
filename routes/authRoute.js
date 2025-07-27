@@ -14,10 +14,10 @@ const {authenticate} = require("../middlewares/authMiddleware");
  * @swagger
  * /auth/signup:
  *   post:
- *     summary: Register a new user and send verification OTP
+ *     summary: Register a new user (with optional password) and send verification OTP
  *     tags: [Auth]
  *     requestBody:
- *       description: Email to begin signup (optionally include referral token)
+ *       description: Create account with email (and optional password). OTP will be sent to email.
  *       required: true
  *       content:
  *         application/json:
@@ -29,6 +29,14 @@ const {authenticate} = require("../middlewares/authMiddleware");
  *                 type: string
  *                 format: email
  *                 example: user@example.com
+ *               password:
+ *                 type: string
+ *                 description: Optional password to create during signup
+ *                 example: StrongPassword123
+ *               confirmPassword:
+ *                 type: string
+ *                 description: Must match password if provided
+ *                 example: StrongPassword123
  *               role:
  *                 type: string
  *                 example: user
@@ -36,24 +44,29 @@ const {authenticate} = require("../middlewares/authMiddleware");
  *                 type: string
  *                 description: Optional referral token from invitation link
  *                 example: d44f8e3e-0ed9-4f77-bb7e-abc123456789
+ *               deviceToken:
+ *                 type: string
+ *                 description: Optional device token for push notifications
+ *                 example: fcm_device_token_12345
  *     responses:
  *       201:
- *         description: OTP sent to email
+ *         description: Signup successful, OTP sent to email.
  *       400:
- *         description: Invalid email
+ *         description: Invalid email or password mismatch.
  *       409:
- *         description: User already exists
+ *         description: User already exists.
  */
 router.post("/signup", authController.signup);
+
 
 /**
  * @swagger
  * /auth/verify-otp-signup:
  *   post:
- *     summary: Verify signup OTP and activate user account
+ *     summary: Verify signup OTP, activate user account, and apply referral if provided
  *     tags: [Auth]
  *     requestBody:
- *       description: OTP verification data
+ *       description: OTP verification data (optionally include referral token)
  *       required: true
  *       content:
  *         application/json:
@@ -67,11 +80,17 @@ router.post("/signup", authController.signup);
  *               otp:
  *                 type: string
  *                 example: "123456"
+ *               referralToken:
+ *                 type: string
+ *                 description: Optional referral token (applied only after successful verification)
+ *                 example: d44f8e3e-0ed9-4f77-bb7e-abc123456789
  *     responses:
  *       200:
- *         description: Signup verified successfully
+ *         description: Signup verified successfully and referral applied if valid
  *       400:
  *         description: Invalid or expired OTP or already verified
+ *       500:
+ *         description: Server error
  */
 router.post("/verify-otp-signup", authController.verifyOtpForSignup);
 
