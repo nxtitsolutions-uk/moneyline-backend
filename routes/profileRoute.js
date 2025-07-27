@@ -52,6 +52,7 @@ const profileController = require('../controllers/profileController');
  *       500:
  *         description: Failed to create profile
  */
+router.post("/create", profileController.createProfile);
 
 /**
  * @swagger
@@ -91,6 +92,7 @@ const profileController = require('../controllers/profileController');
  *       500:
  *         description: Failed to update profile
  */
+router.put("/update", profileController.updateProfile);
 
 /**
  * @swagger
@@ -108,6 +110,7 @@ const profileController = require('../controllers/profileController');
  *       500:
  *         description: Failed to fetch profile
  */
+router.get("/get", profileController.getProfile);
 
 /**
  * @swagger
@@ -123,7 +126,6 @@ const profileController = require('../controllers/profileController');
  *       500:
  *         description: Failed to delete profile
  */
-
 router.delete("/delete", profileController.deleteProfile);
 
 module.exports = router;
