@@ -5,6 +5,7 @@ const router = express.Router();
 const authRoutes = require('./authRoute');
 const s3Routes = require('./s3Route');
 const invitationRoutes = require('./invitationRoute');
+const profileRoutes = require("./profileRoute");
 
 
 
@@ -13,13 +14,14 @@ const invitationRoutes = require('./invitationRoute');
 
 
 // authenticator
-const authenticate = require('../middlewares/authMiddleware');
+const {authenticate} = require('../middlewares/authMiddleware');
  
 
 // authentication routes
 router.use('/auth', authRoutes);
-router.use('/s3', s3Routes);
-router.use('/invitation',invitationRoutes)
+router.use('/s3', authenticate,s3Routes);
+router.use('/invitation',authenticate, invitationRoutes)
+router.use("/profile", authenticate, profileRoutes);
 
 
 
