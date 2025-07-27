@@ -4,7 +4,7 @@ const appleSigninAuth = require("apple-signin-auth");
 const User = require("../models/userModel");
 const RefreshToken = require("../models/refreshTokenModel");
 const Profile = require("../models/profileModel");
-const Invitation = require("../models/invitationModel"); // Import the model
+const Invitation = require("../models/invitationModel");
 const { generateOtp } = require("../utils/generateOtp");
 const { sendOtpEmail } = require("../services/emailService");
 const {
