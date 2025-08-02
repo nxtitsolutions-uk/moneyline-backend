@@ -1,0 +1,137 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy to EC2
+        env:
+          EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $EC2_PUBLIC_DNS <<EOF
+            sudo su -
+
+            DOMAIN="api.moneylinebackend.co.uk"
+            EMAIL="nxtitsolution@gmail.com"
+
+            # Install Nginx if not installed
+            if ! command -v nginx &> /dev/null; then
+              apt update && apt install nginx -y
+            fi
+
+            # STEP 1: Create a basic HTTP-only Nginx config for Certbot to work
+            cat > /etc/nginx/sites-available/myapp <<NGINX_CONF
+          server {
+              listen 80;
+              server_name \${DOMAIN};
+
+              location / {
+                  proxy_pass http://localhost:4500;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \\\$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \\\$host;
+                  proxy_cache_bypass \\\$http_upgrade;
+              }
+          }
+          NGINX_CONF
+
+            rm -f /etc/nginx/sites-enabled/default
+            ln -sf /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/myapp
+            nginx -t && systemctl reload nginx
+
+            # STEP 2: Install Certbot and request HTTPS certificate
+            if ! command -v certbot &> /dev/null; then
+              apt install -y certbot python3-certbot-nginx
+            fi
+
+            if [ ! -d "/etc/letsencrypt/live/\${DOMAIN}" ]; then
+              certbot --nginx --non-interactive --agree-tos --email \${EMAIL} -d \${DOMAIN}
+            fi
+
+            # STEP 3: Overwrite Nginx config to redirect HTTP → HTTPS and serve HTTPS traffic
+            cat > /etc/nginx/sites-available/myapp <<NGINX_CONF
+          server {
+              listen 80;
+              server_name \${DOMAIN};
+              return 301 https://\\\$host\\\$request_uri;
+          }
+
+          server {
+              listen 443 ssl;
+              server_name \${DOMAIN};
+
+              ssl_certificate /etc/letsencrypt/live/\${DOMAIN}/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/\${DOMAIN}/privkey.pem;
+
+              location / {
+                  proxy_pass http://localhost:4500;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \\\$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \\\$host;
+                  proxy_cache_bypass \\\$http_upgrade;
+              }
+          }
+          NGINX_CONF
+
+            nginx -t && systemctl reload nginx
+
+            # STEP 4: Add auto-renew cron job (runs daily at 2am)
+            if ! crontab -l | grep -q "certbot renew"; then
+              (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | crontab -
+              echo "✅ Cron job added for SSL auto-renewal"
+            fi
+
+            # Install Node.js if not already installed
+            if ! command -v node &> /dev/null; then
+              curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+              apt install -y nodejs
+            fi
+
+            # Install yarn if not already
+            if ! command -v yarn &> /dev/null; then
+              npm install -g yarn
+            fi
+
+            # Install PM2 if not already
+            if ! command -v pm2 &> /dev/null; then
+              npm install -g pm2
+            fi
+
+            # STEP 5: Deploy your Node.js app
+            if [ -d "/root/moneyline-backend" ]; then
+               cd /root/moneyline-backend
+               git fetch origin
+               git reset --hard origin/main
+               npm install
+               if pm2 list | grep -q "default"; then
+               pm2 reload default
+               else
+               pm2 start /root/moneyline-backend/server.js --name default
+               fi 
+            else
+              git clone https://${{ secrets.AUTH_TOKEN }}@github.com/tx-dynamics/moneyline-backend.git /root/moneyline-backend
+              cd /root/moneyline-backend
+              git checkout main
+              npm install
+              pm2 start /root/moneyline-backend/server.js --name default
+            fi
+            pm2 save
+            echo "✅ Deployment completed with HTTPS, HTTP redirect, and auto-renewal."
+          EOF
