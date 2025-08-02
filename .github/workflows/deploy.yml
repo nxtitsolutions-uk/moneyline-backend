@@ -126,7 +126,7 @@ jobs:
                pm2 start /root/moneyline-backend/server.js --name default
                fi 
             else
-              git clone https://${{ secrets.AUTH_TOKEN }}@github.com/tx-dynamics/moneyline-backend.git /root/moneyline-backend
+              git clone https://${{ secrets.AUTH_TOKEN }}@github.com:nxtitsolutions-uk/moneyline-backend.git /root/moneyline-backend
               cd /root/moneyline-backend
               git checkout development
               npm install
