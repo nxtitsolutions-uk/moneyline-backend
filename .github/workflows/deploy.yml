@@ -118,7 +118,7 @@ jobs:
             if [ -d "/root/moneyline-backend" ]; then
                cd /root/moneyline-backend
                git fetch origin
-               git reset --hard origin/main
+               git reset --hard origin/development
                npm install
                if pm2 list | grep -q "default"; then
                pm2 reload default
@@ -126,7 +126,7 @@ jobs:
                pm2 start /root/moneyline-backend/server.js --name default
                fi 
             else
-              git clone https://${{ secrets.AUTH_TOKEN }}@github.com/tx-dynamics/moneyline-backend.git /root/moneyline-backend
+              git clone https://${{ secrets.AUTH_TOKEN }}https://github.com/nxtitsolutions-uk/moneyline-backend /root/moneyline-backend
               cd /root/moneyline-backend
               git checkout development
               npm install
