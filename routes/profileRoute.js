@@ -130,6 +130,3 @@ router.delete("/delete", profileController.deleteProfile);
 
 module.exports = router;
 
-
-
-// 
