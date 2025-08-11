@@ -112,4 +112,69 @@ router.get("/schedules/:date", cricketController.getScheduleByDate);
  */
 router.get("/matches/:urn/lineups", cricketController.getLineups);
 
+/**
+ * @swagger
+ * /cricket/db/latest/{feed}/{id}:
+ *   get:
+ *     summary: Get latest backed-up cricket data from DB
+ *     tags: [Cricket]
+ *     parameters:
+ *       - in: path
+ *         name: feed
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: schedules
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "2025-08-10"
+ *       - in: query
+ *         name: locale
+ *         schema:
+ *           type: string
+ *           example: en
+ *     responses:
+ *       200:
+ *         description: Latest backup from DB
+ *       404:
+ *         description: No backup found
+ */
+router.get("/db/latest/:feed/:id", cricketController.getLatestFromDb);
+
+/**
+ * @swagger
+ * /cricket/db/snapshots/{feed}/{id}:
+ *   get:
+ *     summary: Get all historical snapshots for a cricket resource
+ *     tags: [Cricket]
+ *     parameters:
+ *       - in: path
+ *         name: feed
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: schedules
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "2025-08-10"
+ *       - in: query
+ *         name: locale
+ *         schema:
+ *           type: string
+ *           example: en
+ *     responses:
+ *       200:
+ *         description: List of snapshots from DB
+ *       404:
+ *         description: No snapshots found
+ */
+router.get("/db/snapshots/:feed/:id", cricketController.getSnapshotsFromDb);
+
+
 module.exports = router;
