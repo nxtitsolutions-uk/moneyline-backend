@@ -8,6 +8,7 @@ const s3Routes = require('./s3Route');
 const invitationRoutes = require('./invitationRoute');
 const profileRoutes = require("./profileRoute");
 const userRoutes = require('./userRoute');
+const cricketRoutes = require('./cricketRoute');
 
 
 
@@ -25,6 +26,7 @@ router.use('/s3', authenticate,s3Routes);
 router.use('/invitation',authenticate, invitationRoutes)
 router.use("/profile", authenticate, profileRoutes);
 router.use('/user', authenticate, userRoutes);
+router.use('/cricket', authenticate, cricketRoutes);
 
 
 
