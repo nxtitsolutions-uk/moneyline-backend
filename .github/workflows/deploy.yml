@@ -42,7 +42,7 @@ jobs:
 
       # Optional: print target to confirm formatting (no secrets exposed)
       - name: Print target (sanity check)
-        run: echo "::notice:: Target='${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}'"
+        run: echo "::notice::Target='${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}'"
 
       - name: Upload artifact to EC2
         env:
