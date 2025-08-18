@@ -20,10 +20,12 @@ jobs:
 
       - name: Deploy to EC2
         env:
-          EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}
-          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+          EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}   # e.g. ubuntu@54.81.17.136
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}           # PAT with repo read access
         run: |
-          ssh -o StrictHostKeyChecking=no $EC2_PUBLIC_DNS <<EOF
+          ssh -o StrictHostKeyChecking=no "$EC2_PUBLIC_DNS" <<EOF
+            set -e
+
             sudo su -
 
             DOMAIN="api.moneylinebackend.co.uk"
@@ -31,25 +33,25 @@ jobs:
 
             # Install Nginx if not installed
             if ! command -v nginx &> /dev/null; then
-              apt update && apt install nginx -y
+              apt update && apt install -y nginx
             fi
 
-            # STEP 1: Create a basic HTTP-only Nginx config for Certbot to work
+            # STEP 1: Basic HTTP-only Nginx config (needed for initial Certbot)
             cat > /etc/nginx/sites-available/moneyline <<NGINX_CONF
-          server {
-              listen 80;
-              server_name \${DOMAIN};
+            server {
+                listen 80;
+                server_name \${DOMAIN};
 
-              location / {
-                  proxy_pass http://localhost:4500;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \\\$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \\\$host;
-                  proxy_cache_bypass \\\$http_upgrade;
-              }
-          }
-          NGINX_CONF
+                location / {
+                    proxy_pass http://localhost:4500;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \\\$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \\\$host;
+                    proxy_cache_bypass \\\$http_upgrade;
+                }
+            }
+            NGINX_CONF
 
             rm -f /etc/nginx/sites-enabled/default
             ln -sf /etc/nginx/sites-available/moneyline /etc/nginx/sites-enabled/moneyline
@@ -64,35 +66,35 @@ jobs:
               certbot --nginx --non-interactive --agree-tos --email \${EMAIL} -d \${DOMAIN}
             fi
 
-            # STEP 3: Overwrite Nginx config to redirect HTTP → HTTPS and serve HTTPS traffic
+            # STEP 3: Overwrite Nginx config to redirect HTTP → HTTPS and serve HTTPS
             cat > /etc/nginx/sites-available/moneyline <<NGINX_CONF
-          server {
-              listen 80;
-              server_name \${DOMAIN};
-              return 301 https://\\\$host\\\$request_uri;
-          }
+            server {
+                listen 80;
+                server_name \${DOMAIN};
+                return 301 https://\\\$host\\\$request_uri;
+            }
 
-          server {
-              listen 443 ssl;
-              server_name \${DOMAIN};
+            server {
+                listen 443 ssl;
+                server_name \${DOMAIN};
 
-              ssl_certificate /etc/letsencrypt/live/\${DOMAIN}/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/\${DOMAIN}/privkey.pem;
+                ssl_certificate /etc/letsencrypt/live/\${DOMAIN}/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/\${DOMAIN}/privkey.pem;
 
-              location / {
-                  proxy_pass http://localhost:4500;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \\\$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \\\$host;
-                  proxy_cache_bypass \\\$http_upgrade;
-              }
-          }
-          NGINX_CONF
+                location / {
+                    proxy_pass http://localhost:4500;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \\\$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \\\$host;
+                    proxy_cache_bypass \\\$http_upgrade;
+                }
+            }
+            NGINX_CONF
 
             nginx -t && systemctl reload nginx
 
-            # STEP 4: Add auto-renew cron job (runs daily at 2am)
+            # STEP 4: Auto-renew cron (daily at 2am)
             if ! crontab -l | grep -q "certbot renew"; then
               (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | crontab -
               echo "✅ Cron job added for SSL auto-renewal"
@@ -114,9 +116,9 @@ jobs:
               npm install -g pm2
             fi
 
-            # STEP 5: Deploy your Node.js app
-            if [ -d "/root/SODSOL-backend" ]; then
-               cd /root/SODSOL-backend
+            # STEP 5: Deploy Node.js app (pull on host)
+            if [ -d "/root/moneyline-backend" ]; then
+               cd /root/moneyline-backend
                git fetch origin
                git reset --hard origin/main
                npm install
@@ -126,12 +128,14 @@ jobs:
                  pm2 start /root/moneyline-backend/server.js --name default
                fi 
             else
-              git clone https://${{ secrets.AUTH_TOKEN }}@git@github.com:nxtitsolutions-uk/moneyline-backend.git /root/moneyline-backend
+              # NOTE: AUTH_TOKEN is injected by the GitHub Actions runner
+              git clone https://$AUTH_TOKEN@github.com/nxtitsolutions-uk/moneyline-backend.git /root/moneyline-backend
               cd /root/moneyline-backend
               git checkout main
               npm install
               pm2 start /root/moneyline-backend/server.js --name default
             fi
+
             pm2 save
             echo "✅ Deployment completed with HTTPS, HTTP redirect, and auto-renewal."
           EOF
