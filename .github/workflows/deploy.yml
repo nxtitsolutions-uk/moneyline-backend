@@ -3,7 +3,7 @@ name: Deploy Moneyline to EC2
 on:
   push:
     branches:
-      - main
+      - development
 
 jobs:
   deploy:
