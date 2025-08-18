@@ -118,7 +118,7 @@ jobs:
             if [ -d "/root/moneyline-backend" ]; then
                cd /root/moneyline-backend
                git fetch origin
-               git reset --hard origin/main
+               git reset --hard origin/development
                npm install
                if pm2 list | grep -q "default"; then
                pm2 reload default
