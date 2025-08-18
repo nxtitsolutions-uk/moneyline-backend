@@ -3,7 +3,7 @@ name: Deploy Moneyline to EC2
 on:
   push:
     branches:
-      - development
+      - main
 
 jobs:
   deploy:
@@ -21,121 +21,118 @@ jobs:
       - name: Deploy to EC2
         env:
           EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}   # e.g. ubuntu@54.81.17.136
-          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}           # PAT with repo read access
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}           # PAT with read to the repo
         run: |
-          ssh -o StrictHostKeyChecking=no "$EC2_PUBLIC_DNS" <<EOF
-            set -e
-
-            sudo su -
+          ssh -o StrictHostKeyChecking=no "$EC2_PUBLIC_DNS" <<'EOF'
+            set -euo pipefail
 
             DOMAIN="api.moneylinebackend.co.uk"
             EMAIL="ranasami006@gmail.com"
+            APP_DIR="/root/moneyline-backend"
+            APP_ENTRY="server.js"
+            APP_PORT="4500"
+            PM2_NAME="default"
 
-            # Install Nginx if not installed
-            if ! command -v nginx &> /dev/null; then
-              apt update && apt install -y nginx
+            # --- Nginx install ---
+            if ! command -v nginx >/dev/null 2>&1; then
+              sudo apt update && sudo apt install -y nginx
+              sudo systemctl enable nginx
+              sudo systemctl start nginx
             fi
 
-            # STEP 1: Basic HTTP-only Nginx config (needed for initial Certbot)
-            cat > /etc/nginx/sites-available/moneyline <<NGINX_CONF
+            # --- HTTP vhost (for initial cert + fallback) ---
+            sudo tee /etc/nginx/sites-available/moneyline >/dev/null <<'NGINX_CONF'
             server {
-                listen 80;
-                server_name \${DOMAIN};
+              listen 80;
+              server_name ${DOMAIN};
 
-                location / {
-                    proxy_pass http://localhost:4500;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade \\\$http_upgrade;
-                    proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host \\\$host;
-                    proxy_cache_bypass \\\$http_upgrade;
-                }
+              location / {
+                proxy_pass http://localhost:4500;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+              }
             }
             NGINX_CONF
 
-            rm -f /etc/nginx/sites-enabled/default
-            ln -sf /etc/nginx/sites-available/moneyline /etc/nginx/sites-enabled/moneyline
-            nginx -t && systemctl reload nginx
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo ln -sf /etc/nginx/sites-available/moneyline /etc/nginx/sites-enabled/moneyline
+            sudo nginx -t && sudo systemctl reload nginx
 
-            # STEP 2: Install Certbot and request HTTPS certificate
-            if ! command -v certbot &> /dev/null; then
-              apt install -y certbot python3-certbot-nginx
+            # --- Certbot / HTTPS (optional on first run) ---
+            if ! command -v certbot >/dev/null 2>&1; then
+              sudo apt install -y certbot python3-certbot-nginx
             fi
 
-            if [ ! -d "/etc/letsencrypt/live/\${DOMAIN}" ]; then
-              certbot --nginx --non-interactive --agree-tos --email \${EMAIL} -d \${DOMAIN}
+            if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+              sudo certbot --nginx --non-interactive --agree-tos --email "${EMAIL}" -d "${DOMAIN}" || true
             fi
 
-            # STEP 3: Overwrite Nginx config to redirect HTTP → HTTPS and serve HTTPS
-            cat > /etc/nginx/sites-available/moneyline <<NGINX_CONF
-            server {
+            # If cert exists, switch to HTTPS vhost with redirect
+            if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+              sudo tee /etc/nginx/sites-available/moneyline >/dev/null <<'NGINX_CONF'
+              server {
                 listen 80;
-                server_name \${DOMAIN};
-                return 301 https://\\\$host\\\$request_uri;
-            }
+                server_name ${DOMAIN};
+                return 301 https://$host$request_uri;
+              }
 
-            server {
+              server {
                 listen 443 ssl;
-                server_name \${DOMAIN};
+                server_name ${DOMAIN};
 
-                ssl_certificate /etc/letsencrypt/live/\${DOMAIN}/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/\${DOMAIN}/privkey.pem;
+                ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
                 location / {
-                    proxy_pass http://localhost:4500;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade \\\$http_upgrade;
-                    proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host \\\$host;
-                    proxy_cache_bypass \\\$http_upgrade;
+                  proxy_pass http://localhost:4500;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
                 }
-            }
-            NGINX_CONF
+              }
+              NGINX_CONF
 
-            nginx -t && systemctl reload nginx
+              sudo ln -sf /etc/nginx/sites-available/moneyline /etc/nginx/sites-enabled/moneyline
+              sudo nginx -t && sudo systemctl reload nginx
 
-            # STEP 4: Auto-renew cron (daily at 2am)
-            if ! crontab -l | grep -q "certbot renew"; then
-              (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | crontab -
-              echo "✅ Cron job added for SSL auto-renewal"
+              # Auto-renew (daily at 2am)
+              if ! sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
+                (sudo crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | sudo crontab -
+              fi
             fi
 
-            # Install Node.js if not already installed
-            if ! command -v node &> /dev/null; then
-              curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-              apt install -y nodejs
+            # --- Node / Yarn / PM2 ---
+            if ! command -v node >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+              sudo apt install -y nodejs
+            fi
+            if ! command -v yarn >/dev/null 2>&1; then
+              sudo npm i -g yarn
+            fi
+            if ! command -v pm2 >/dev/null 2>&1; then
+              sudo npm i -g pm2
             fi
 
-            # Install yarn if not already
-            if ! command -v yarn &> /dev/null; then
-              npm install -g yarn
-            fi
-
-            # Install PM2 if not already
-            if ! command -v pm2 &> /dev/null; then
-              npm install -g pm2
-            fi
-
-            # STEP 5: Deploy Node.js app (pull on host)
-            if [ -d "/root/moneyline-backend" ]; then
-               cd /root/moneyline-backend
-               git fetch origin
-               git reset --hard origin/main
-               npm install
-               if pm2 list | grep -q "default"; then
-                 pm2 reload default
-               else
-                 pm2 start /root/moneyline-backend/server.js --name default
-               fi 
+            # --- App deploy (pull on host, consistent root ownership) ---
+            if sudo test -d "$APP_DIR"; then
+              sudo bash -lc "cd '$APP_DIR' && git fetch origin && git reset --hard origin/main && npm install"
             else
-              # NOTE: AUTH_TOKEN is injected by the GitHub Actions runner
-              git clone https://$AUTH_TOKEN@github.com/nxtitsolutions-uk/moneyline-backend.git /root/moneyline-backend
-              cd /root/moneyline-backend
-              git checkout main
-              npm install
-              pm2 start /root/moneyline-backend/server.js --name default
+              sudo bash -lc "git clone 'https://$AUTH_TOKEN@github.com/nxtitsolutions-uk/moneyline-backend.git' '$APP_DIR'"
+              sudo bash -lc "cd '$APP_DIR' && git checkout main && npm install"
             fi
 
-            pm2 save
-            echo "✅ Deployment completed with HTTPS, HTTP redirect, and auto-renewal."
+            # --- PM2 start/reload under root ---
+            if sudo pm2 describe "$PM2_NAME" >/dev/null 2>&1; then
+              sudo pm2 reload "$PM2_NAME"
+            else
+              sudo pm2 start "$APP_DIR/$APP_ENTRY" --name "$PM2_NAME"
+            fi
+            sudo pm2 save
+
+            echo "✅ Deployment completed (domain: ${DOMAIN}, port: ${APP_PORT})"
           EOF
