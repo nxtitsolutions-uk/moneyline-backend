@@ -11,14 +11,14 @@ jobs:
 
     env:
       # ---- App/runtime config (adjust if needed) ----
-      APP_NAME: "moneyline-backend"     # PM2 process name
-      ENTRY_FILE: "server.js"           # Your Node entry (e.g., app.js, src/index.js)
-      APP_PORT: "4500"                  # Node listens here; Nginx proxies to this
+      APP_NAME: moneyline-backend        # PM2 process name
+      ENTRY_FILE: server.js              # Your Node entry (e.g., app.js, src/index.js)
+      APP_PORT: "4500"                   # Node listens here; Nginx proxies to this
 
       # Release layout on server
-      REMOTE_ROOT: "/var/www/moneyline"
-      RELEASES_DIR: "/var/www/moneyline/releases"
-      CURRENT_LINK: "/var/www/moneyline/current"
+      REMOTE_ROOT: /var/www/moneyline
+      RELEASES_DIR: /var/www/moneyline/releases
+      CURRENT_LINK: /var/www/moneyline/current
 
     steps:
       - name: Checkout code
@@ -34,7 +34,7 @@ jobs:
             ecosystem.config.js 2>/dev/null || true
           ls -lh artifact/release.tgz
 
-      # Load your private key into ssh-agent (uses EC2_SSH_KEY secret)
+      # Load your private key into ssh-agent
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -48,23 +48,25 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_PORT: ${{ secrets.EC2_PORT || '22' }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}    # may be empty
         run: |
-          scp -P "$EC2_PORT" -o StrictHostKeyChecking=no artifact/release.tgz \
+          PORT="${EC2_PORT:-22}"
+          scp -P "$PORT" -o StrictHostKeyChecking=no artifact/release.tgz \
             "$EC2_USER@$EC2_HOST:/tmp/release.tgz"
 
       - name: Deploy on EC2 (bootstrap + releases + PM2 + Nginx + optional SSL)
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_PORT: ${{ secrets.EC2_PORT || '22' }}
-          DOMAIN: ${{ secrets.DOMAIN }}   # optional: e.g., api.moneylinebackend.co.uk
-          EMAIL: ${{ secrets.EMAIL }}     # optional: certbot email
+          EC2_PORT: ${{ secrets.EC2_PORT }}    # may be empty
+          DOMAIN: ${{ secrets.DOMAIN }}        # optional: e.g., api.moneylinebackend.co.uk
+          EMAIL: ${{ secrets.EMAIL }}          # optional: certbot email
         run: |
-          ssh -p "$EC2_PORT" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" <<'EOF'
+          PORT="${EC2_PORT:-22}"
+          ssh -p "$PORT" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" <<EOF
             set -euo pipefail
 
-            # ---- Vars from workflow env ----
+            # ---- Vars from workflow env (already interpolated locally) ----
             APP_NAME="${APP_NAME}"
             ENTRY_FILE="${ENTRY_FILE}"
             APP_PORT="${APP_PORT}"
@@ -120,13 +122,13 @@ jobs:
             sudo nginx -t && sudo systemctl reload nginx
 
             # Optional: HTTPS via Certbot if DOMAIN & EMAIL provided
-            if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
+            if [ -n "\$DOMAIN" ] && [ -n "\$EMAIL" ]; then
               if ! command -v certbot >/dev/null 2>&1; then
                 sudo apt-get install -y certbot python3-certbot-nginx
               fi
 
-              if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-                sudo certbot --nginx --non-interactive --agree-tos --email "$EMAIL" -d "$DOMAIN"
+              if [ ! -d "/etc/letsencrypt/live/\$DOMAIN" ]; then
+                sudo certbot --nginx --non-interactive --agree-tos --email "\$EMAIL" -d "\$DOMAIN"
               fi
 
               sudo bash -c "cat > /etc/nginx/sites-available/moneyline_https.conf" <<NGINX_HTTPS
@@ -164,23 +166,23 @@ jobs:
             fi
 
             # ---- App deployment: releases + symlink + PM2 reload ----
-            sudo mkdir -p "$RELEASES_DIR"
-            sudo mkdir -p "$REMOTE_ROOT"
-            sudo chown -R "$USER":"$USER" "$REMOTE_ROOT"
+            sudo mkdir -p "\$RELEASES_DIR"
+            sudo mkdir -p "\$REMOTE_ROOT"
+            sudo chown -R "\$USER":"\$USER" "\$REMOTE_ROOT"
 
-            TS="$(date +%Y%m%d%H%M%S)"
-            NEW_RELEASE="$RELEASES_DIR/$TS"
-            mkdir -p "$NEW_RELEASE"
+            TS="\$(date +%Y%m%d%H%M%S)"
+            NEW_RELEASE="\$RELEASES_DIR/\$TS"
+            mkdir -p "\$NEW_RELEASE"
 
             # Unpack artifact
-            tar -xzf /tmp/release.tgz -C "$NEW_RELEASE"
+            tar -xzf /tmp/release.tgz -C "\$NEW_RELEASE"
 
             # Preserve .env from current if present
-            if [ -L "$CURRENT_LINK" ] && [ -f "$CURRENT_LINK/.env" ] && [ ! -f "$NEW_RELEASE/.env" ]; then
-              cp "$CURRENT_LINK/.env" "$NEW_RELEASE/.env"
+            if [ -L "\$CURRENT_LINK" ] && [ -f "\$CURRENT_LINK/.env" ] && [ ! -f "\$NEW_RELEASE/.env" ]; then
+              cp "\$CURRENT_LINK/.env" "\$NEW_RELEASE/.env"
             fi
 
-            cd "$NEW_RELEASE"
+            cd "\$NEW_RELEASE"
 
             # Install production deps deterministically
             if [ -f package-lock.json ]; then
@@ -195,15 +197,15 @@ jobs:
             fi
 
             # Atomically switch 'current' symlink
-            ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
+            ln -sfn "\$NEW_RELEASE" "\$CURRENT_LINK"
 
             # Start or reload app with PM2
-            if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-              pm2 reload "$APP_NAME"
+            if pm2 describe "\$APP_NAME" >/dev/null 2>&1; then
+              pm2 reload "\$APP_NAME"
             else
-              pm2 start "$CURRENT_LINK/$ENTRY_FILE" --name "$APP_NAME"
+              pm2 start "\$CURRENT_LINK/$ENTRY_FILE" --name "\$APP_NAME"
             fi
             pm2 save
 
-            echo "✅ Deployed release: $NEW_RELEASE (port: $APP_PORT, domain: ${DOMAIN:-none})"
+            echo "✅ Deployed release: \$NEW_RELEASE (port: \$APP_PORT, domain: \${DOMAIN:-none})"
           EOF
