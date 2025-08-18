@@ -123,7 +123,7 @@ jobs:
               sudo bash -lc "cd '$APP_DIR' && git fetch origin && git reset --hard origin/main && npm install"
             else
               sudo bash -lc "git clone 'https://$AUTH_TOKEN@github.com/nxtitsolutions-uk/moneyline-backend.git' '$APP_DIR'"
-              sudo bash -lc "cd '$APP_DIR' && git checkout main && npm install"
+              sudo bash -lc "cd '$APP_DIR' && git checkout development && npm install"
             fi
 
             # --- PM2 start/reload under root ---
