@@ -27,7 +27,7 @@ jobs:
             sudo su -
 
             DOMAIN="api.moneylinebackend.co.uk"
-            EMAIL="askhamzasajjad@gmail.com"
+            EMAIL="nxtitsolution@gmail.com"
 
             # Install Nginx if not installed
             if ! command -v nginx &> /dev/null; then
