@@ -50,7 +50,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_PORT: ${{ secrets.EC2_PORT }}    # may be empty
         run: |
-          PORT="${EC2_PORT:-22}"
+          PORT="${EC2_PORT:22}"
           scp -P "$PORT" -o StrictHostKeyChecking=no artifact/release.tgz \
             "$EC2_USER@$EC2_HOST:/tmp/release.tgz"
 
