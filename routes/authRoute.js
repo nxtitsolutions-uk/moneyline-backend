@@ -58,7 +58,6 @@ const {authenticate} = require("../middlewares/authMiddleware");
  */
 router.post("/signup", authController.signup);
 
-
 /**
  * @swagger
  * /auth/verify-otp-signup:
