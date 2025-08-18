@@ -3,17 +3,19 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - development
+      - development   # deploys when you push to 'development'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     env:
-      # --- App/runtime config (edit if needed) ---
+      # ---- App/runtime config (adjust if needed) ----
       APP_NAME: "moneyline-backend"     # PM2 process name
-      ENTRY_FILE: "server.js"           # Your Node entry file
+      ENTRY_FILE: "server.js"           # Your Node entry (e.g., app.js, src/index.js)
       APP_PORT: "4500"                  # Node listens here; Nginx proxies to this
+
+      # Release layout on server
       REMOTE_ROOT: "/var/www/moneyline"
       RELEASES_DIR: "/var/www/moneyline/releases"
       CURRENT_LINK: "/var/www/moneyline/current"
@@ -22,7 +24,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Package only what the server needs (no .git, node_modules, .env)
+      # Create a compact artifact (no git, no node_modules, no .env)
       - name: Create release archive
         run: |
           mkdir -p artifact
@@ -32,28 +34,37 @@ jobs:
             ecosystem.config.js 2>/dev/null || true
           ls -lh artifact/release.tgz
 
-      # Use your existing SSH key secret with the ssh-agent action (same as your script)
+      # Load your private key into ssh-agent (uses EC2_SSH_KEY secret)
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
+      # Optional: print target to confirm formatting (no secrets exposed)
+      - name: Print target (sanity check)
+        run: echo "::notice:: Target='${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}'"
+
       - name: Upload artifact to EC2
         env:
-          EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}   # e.g. ubuntu@ec2-xx-xx-xx-xx.compute.amazonaws.com
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_PORT: ${{ secrets.EC2_PORT || '22' }}
         run: |
-          scp -o StrictHostKeyChecking=no artifact/release.tgz "$EC2_PUBLIC_DNS:/tmp/release.tgz"
+          scp -P "$EC2_PORT" -o StrictHostKeyChecking=no artifact/release.tgz \
+            "$EC2_USER@$EC2_HOST:/tmp/release.tgz"
 
       - name: Deploy on EC2 (bootstrap + releases + PM2 + Nginx + optional SSL)
         env:
-          EC2_PUBLIC_DNS: ${{ secrets.EC2_PUBLIC_DNS }}
-          DOMAIN: ${{ secrets.DOMAIN }}   # e.g. api.moneylinebackend.co.uk (leave empty for HTTP-only)
-          EMAIL: ${{ secrets.EMAIL }}     # e.g. your certbot email
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_PORT: ${{ secrets.EC2_PORT || '22' }}
+          DOMAIN: ${{ secrets.DOMAIN }}   # optional: e.g., api.moneylinebackend.co.uk
+          EMAIL: ${{ secrets.EMAIL }}     # optional: certbot email
         run: |
-          ssh -o StrictHostKeyChecking=no "$EC2_PUBLIC_DNS" <<'EOF'
+          ssh -p "$EC2_PORT" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" <<'EOF'
             set -euo pipefail
 
-            # --- Vars from workflow env ---
+            # ---- Vars from workflow env ----
             APP_NAME="${APP_NAME}"
             ENTRY_FILE="${ENTRY_FILE}"
             APP_PORT="${APP_PORT}"
@@ -63,8 +74,8 @@ jobs:
             DOMAIN="${DOMAIN:-}"
             EMAIL="${EMAIL:-}"
 
-            # --- System prep (idempotent) ---
-            # Node, jq, PM2
+            # ---- System prep (idempotent) ----
+            # Node / jq
             if ! command -v node >/dev/null 2>&1; then
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs build-essential jq
@@ -73,11 +84,13 @@ jobs:
                 sudo apt-get install -y jq
               fi
             fi
+
+            # PM2
             if ! command -v pm2 >/dev/null 2>&1; then
               sudo npm i -g pm2
             fi
 
-            # Nginx
+            # Nginx (HTTP)
             if ! command -v nginx >/dev/null 2>&1; then
               sudo apt-get update -y
               sudo apt-get install -y nginx
@@ -85,7 +98,7 @@ jobs:
               sudo systemctl start nginx
             fi
 
-            # --- HTTP vhost (needed for first-time cert issuance; also used if DOMAIN is empty) ---
+            # Base HTTP vhost (needed for initial certificate issuance and HTTP-only mode)
             sudo bash -c "cat > /etc/nginx/sites-available/moneyline_http.conf" <<NGINX_HTTP
             server {
               listen 80 default_server;
@@ -106,17 +119,16 @@ jobs:
             sudo ln -sf /etc/nginx/sites-available/moneyline_http.conf /etc/nginx/sites-enabled/moneyline_http.conf
             sudo nginx -t && sudo systemctl reload nginx
 
-            # --- Optional: HTTPS with Certbot if DOMAIN+EMAIL provided ---
+            # Optional: HTTPS via Certbot if DOMAIN & EMAIL provided
             if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
               if ! command -v certbot >/dev/null 2>&1; then
                 sudo apt-get install -y certbot python3-certbot-nginx
               fi
+
               if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-                # Obtain cert using existing HTTP vhost
                 sudo certbot --nginx --non-interactive --agree-tos --email "$EMAIL" -d "$DOMAIN"
               fi
 
-              # HTTPS vhost + HTTP->HTTPS redirect
               sudo bash -c "cat > /etc/nginx/sites-available/moneyline_https.conf" <<NGINX_HTTPS
               server {
                 listen 80;
@@ -145,13 +157,13 @@ jobs:
               sudo ln -sf /etc/nginx/sites-available/moneyline_https.conf /etc/nginx/sites-enabled/moneyline_https.conf
               sudo nginx -t && sudo systemctl reload nginx
 
-              # Auto-renew daily at 2 AM
+              # Auto-renew daily at 2am
               if ! sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
                 (sudo crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | sudo crontab -
               fi
             fi
 
-            # --- App deployment: releases + symlink + PM2 reload ---
+            # ---- App deployment: releases + symlink + PM2 reload ----
             sudo mkdir -p "$RELEASES_DIR"
             sudo mkdir -p "$REMOTE_ROOT"
             sudo chown -R "$USER":"$USER" "$REMOTE_ROOT"
@@ -163,26 +175,26 @@ jobs:
             # Unpack artifact
             tar -xzf /tmp/release.tgz -C "$NEW_RELEASE"
 
-            # Reuse existing .env if present
+            # Preserve .env from current if present
             if [ -L "$CURRENT_LINK" ] && [ -f "$CURRENT_LINK/.env" ] && [ ! -f "$NEW_RELEASE/.env" ]; then
               cp "$CURRENT_LINK/.env" "$NEW_RELEASE/.env"
             fi
 
             cd "$NEW_RELEASE"
 
-            # Install prod deps deterministically
+            # Install production deps deterministically
             if [ -f package-lock.json ]; then
               npm ci --omit=dev
             else
               npm install --omit=dev
             fi
 
-            # Build if script exists
+            # Build if package.json has "build" script
             if jq -e '.scripts.build' package.json >/dev/null 2>&1; then
               npm run build
             fi
 
-            # Atomically switch 'current'
+            # Atomically switch 'current' symlink
             ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
 
             # Start or reload app with PM2
