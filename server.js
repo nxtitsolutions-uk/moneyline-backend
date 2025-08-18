@@ -12,7 +12,6 @@ const swaggerUi = require('swagger-ui-express');
 
 const connectDB = require('./config/db.js');
 const routes = require('./routes'); // centralized routes
-
 // Express app
 const app = express();
 app.use(express.json());
