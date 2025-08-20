@@ -27,7 +27,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no "$EC2_PUBLIC_DNS" "AUTH_TOKEN=${AUTH_TOKEN} bash -s" <<'EOF'
           set -euo pipefail
 
-          DOMAIN="moneylineonly.com"
+          DOMAIN="api.moneylineonly.com"
           EMAIL="nxtitsolution@gmail.com"
           APP_DIR="/root/moneyline-backend"
           APP_ENTRY="server.js"
