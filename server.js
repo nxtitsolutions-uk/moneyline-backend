@@ -1,3 +1,4 @@
+// server.js
 const dotenv = require('dotenv');
 dotenv.config({ path: './config.env' });
 
@@ -12,7 +13,7 @@ const routes = require('./routes');
 
 const app = express();
 
-// Trust proxy so req.protocol is correct behind Nginx/ALB
+// Ensure correct protocol behind Nginx/ALB
 app.set('trust proxy', true);
 
 // Body parsers
@@ -23,7 +24,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(morgan('dev'));
 
-// Base OpenAPI (without hardcoded servers)
+// (Optional) Force redirect HTTP → HTTPS in production for ALL routes
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const xfProto = req.headers['x-forwarded-proto'];
+    if (xfProto && xfProto !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
+// Base OpenAPI (no hardcoded servers)
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
@@ -33,11 +45,7 @@ const swaggerDefinition = {
   },
   components: {
     securitySchemes: {
-      bearerAuth: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-      },
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
     },
   },
   security: [{ bearerAuth: [] }],
@@ -50,42 +58,40 @@ const swaggerOptions = {
 
 const baseSpec = swaggerJsdoc(swaggerOptions);
 
-/**
- * Serve a dynamic spec that injects the correct server URL based on request.
- * Examples:
- *  - http://localhost:4500/api/v1
- *  - https://api.moneylineonly.com/api/v1
- */
+// Dynamic spec: FORCE https in production
 app.get('/api-docs.json', (req, res) => {
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.get('host'); // includes hostname:port if any
+  const isProd = process.env.NODE_ENV === 'development';
+  const forcedProtocol = isProd ? 'https' : null;
+
+  const protocol = forcedProtocol || req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.get('host'); // includes hostname:port
   const basePath = process.env.API_BASE_PATH || '/api/v1';
 
   const spec = {
     ...baseSpec,
     servers: [
       { url: `${protocol}://${host}${basePath}` },
-      // Optional: include a static localhost entry for convenience
+      // Convenience local entry
       { url: `http://localhost:${process.env.PORT || 5000}${basePath}` },
     ],
   };
   res.json(spec);
 });
 
-// Swagger UI that fetches the dynamic spec above
+// Swagger UI powered by the dynamic spec
 app.use(
   '/api-docs',
   swaggerUi.serve,
   swaggerUi.setup(null, { swaggerOptions: { url: '/api-docs.json' } })
 );
 
-// Test route
+// Health/test route
 app.get('/', (_req, res) => res.send('Hello Money Line Team!'));
 
 // Versioned API routing
 app.use('/api/v1', routes);
 
-// DB + Server
+// Connect DB + start server
 connectDB();
 
 const PORT = process.env.PORT || 5000;
