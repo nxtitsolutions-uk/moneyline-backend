@@ -13,9 +13,11 @@ const swaggerUi = require('swagger-ui-express');
 const connectDB = require('./config/db.js');
 const routes = require('./routes'); // centralized routes
 
+
 // Express app
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Middlewares
 app.use(cors());
@@ -25,9 +27,9 @@ app.use(morgan('dev'));
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
-    title: '{Project Name} API',
+    title: 'Money-Line',
     version: '1.0.0',
-    description: 'API documentation for {Project Name} auth module',
+    description: 'API documentation',
   },
   servers: [
     {
@@ -57,10 +59,11 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Test Route
-app.get('/', (req, res) => res.send('Hello {Project Name}!'));
+app.get('/', (req, res) => res.send('Hello Money Line Team!'));
 
 // Versioned API Routing
 app.use('/api/v1', routes);
+
 
 // Connect to MongoDB
 connectDB();

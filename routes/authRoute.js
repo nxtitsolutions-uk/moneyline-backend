@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/authController");
 const {authenticate} = require("../middlewares/authMiddleware");
+const validate = require('../middlewares/validate');
+const V = require('../validators/authValidator');
 
 /**
  * @swagger
@@ -56,7 +58,7 @@ const {authenticate} = require("../middlewares/authMiddleware");
  *       409:
  *         description: User already exists.
  */
-router.post("/signup", authController.signup);
+router.post("/signup", V.signup, validate, authController.signup);
 
 /**
  * @swagger
@@ -91,7 +93,7 @@ router.post("/signup", authController.signup);
  *       500:
  *         description: Server error
  */
-router.post("/verify-otp-signup", authController.verifyOtpForSignup);
+router.post("/verify-otp-signup", V.verifyOtpForSignup, validate, authController.verifyOtpForSignup);
 
 /**
  * @swagger
@@ -119,7 +121,7 @@ router.post("/verify-otp-signup", authController.verifyOtpForSignup);
  *       403:
  *         description: OTP not verified or user not found
  */
-router.post("/create-password", authController.createPassword);
+router.post("/create-password", V.createPassword, validate, authController.createPassword);
 
 /**
  * @swagger
@@ -145,7 +147,7 @@ router.post("/create-password", authController.createPassword);
  *       400:
  *         description: Invalid request (e.g., already verified)
  */
-router.post("/resend-signup-otp", authController.resendSignupOtp);
+router.post("/resend-signup-otp", V.resendSignupOtp, validate, authController.resendSignupOtp);
 
 /**
  * @swagger
@@ -176,7 +178,7 @@ router.post("/resend-signup-otp", authController.resendSignupOtp);
  *       403:
  *         description: Invalid or unverified user
  */
-router.post("/signin", authController.signin);
+router.post("/signin", V.signin, validate, authController.signin);
 
 /**
  * @swagger
@@ -200,7 +202,7 @@ router.post("/signin", authController.signin);
  *       200:
  *         description: OTP sent for password reset
  */
-router.post("/forgot-password", authController.forgotPassword);
+router.post("/forgot-password", V.forgotPassword, validate, authController.forgotPassword);
 
 /**
  * @swagger
@@ -227,10 +229,8 @@ router.post("/forgot-password", authController.forgotPassword);
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post(
-  "/verify-otp-forgot-password",
-  authController.verifyOtpForForgotPassword
-);
+router.post("/verify-otp-forgot-password", V.verifyOtpForForgotPassword, validate, authController.verifyOtpForForgotPassword);
+
 
 /**
  * @swagger
@@ -258,7 +258,7 @@ router.post(
  *       403:
  *         description: Reset not allowed
  */
-router.post("/reset-password", authController.resetPassword);
+router.post("/reset-password", V.resetPassword, validate, authController.resetPassword);
 
 /**
  * @swagger
@@ -283,7 +283,7 @@ router.post("/reset-password", authController.resetPassword);
  *       403:
  *         description: Invalid or expired refresh token
  */
-router.post("/refresh-token", authController.refreshToken);
+router.post("/refresh-token", V.refreshToken, validate, authController.refreshToken);
 
 /**
  * @swagger
@@ -306,7 +306,7 @@ router.post("/refresh-token", authController.refreshToken);
  *       200:
  *         description: Logged out successfully
  */
-router.post("/logout", authController.logout);
+router.post("/logout", V.logout, validate, authController.logout);
 
 /**
  * @swagger
@@ -371,7 +371,7 @@ router.post("/logout", authController.logout);
  *       500:
  *         description: Social login failed due to server error
  */
-router.post("/social-login", authController.socialLogin);
+router.post("/social-login", V.socialLogin, validate, authController.socialLogin);
 
 
 /**
@@ -400,11 +400,8 @@ router.post("/social-login", authController.socialLogin);
  *       404:
  *         description: User not found
  */
-router.post(
-  "/delete-account",
-  authenticate,
-  authController.requestDeleteAccountOtp
-);
+router.post("/delete-account", authenticate, V.requestDeleteAccountOtp, validate, authController.requestDeleteAccountOtp);
+
 
 /**
  * @swagger
@@ -433,10 +430,7 @@ router.post(
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post(
-  "/verify-delete-account",
-  authenticate,
-  authController.verifyDeleteAccountOtp
-);
+router.post("/verify-delete-account", authenticate, V.verifyDeleteAccountOtp, validate, authController.verifyDeleteAccountOtp);
+
 
 module.exports = router;
