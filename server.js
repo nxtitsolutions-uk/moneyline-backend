@@ -1,21 +1,21 @@
 const dotenv = require('dotenv');
-const path = require("path");
-dotenv.config({ path: "./config.env" });
+dotenv.config({ path: './config.env' });
 
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
-
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
 const connectDB = require('./config/db.js');
-const routes = require('./routes'); // centralized routes
+const routes = require('./routes');
 
-
-// Express app
 const app = express();
+
+// Trust proxy so req.protocol is correct behind Nginx/ALB
+app.set('trust proxy', true);
+
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(morgan('dev'));
 
-// Swagger setup
+// Base OpenAPI (without hardcoded servers)
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
@@ -31,11 +31,6 @@ const swaggerDefinition = {
     version: '1.0.0',
     description: 'API documentation',
   },
-  servers: [
-    {
-      url: `http://localhost:${process.env.PORT || 5000}/api/v1`,
-    },
-  ],
   components: {
     securitySchemes: {
       bearerAuth: {
@@ -50,27 +45,51 @@ const swaggerDefinition = {
 
 const swaggerOptions = {
   swaggerDefinition,
-   apis: ['./routes/**/*.js'],
+  apis: ['./routes/**/*.js'], // your JSDoc annotations
 };
 
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
+const baseSpec = swaggerJsdoc(swaggerOptions);
 
-// Serve Swagger docs
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+/**
+ * Serve a dynamic spec that injects the correct server URL based on request.
+ * Examples:
+ *  - http://localhost:4500/api/v1
+ *  - https://api.moneylineonly.com/api/v1
+ */
+app.get('/api-docs.json', (req, res) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.get('host'); // includes hostname:port if any
+  const basePath = process.env.API_BASE_PATH || '/api/v1';
 
-// Test Route
-app.get('/', (req, res) => res.send('Hello Money Line Team!'));
+  const spec = {
+    ...baseSpec,
+    servers: [
+      { url: `${protocol}://${host}${basePath}` },
+      // Optional: include a static localhost entry for convenience
+      { url: `http://localhost:${process.env.PORT || 5000}${basePath}` },
+    ],
+  };
+  res.json(spec);
+});
 
-// Versioned API Routing
+// Swagger UI that fetches the dynamic spec above
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(null, { swaggerOptions: { url: '/api-docs.json' } })
+);
+
+// Test route
+app.get('/', (_req, res) => res.send('Hello Money Line Team!'));
+
+// Versioned API routing
 app.use('/api/v1', routes);
 
-
-// Connect to MongoDB
+// DB + Server
 connectDB();
 
-// Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📚 Swagger docs available at http://localhost:${PORT}/api-docs`);
+  console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
 });
