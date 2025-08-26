@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const profileController = require('../controllers/profileController');
+const validate = require('../middlewares/validate');          
+const V = require('../validators/profileValidator'); 
 
 /**
  * @swagger
@@ -52,7 +54,7 @@ const profileController = require('../controllers/profileController');
  *       500:
  *         description: Failed to create profile
  */
-router.post("/create", profileController.createProfile);
+router.post('/create', V.create, validate, profileController.createProfile);
 
 /**
  * @swagger
@@ -92,7 +94,7 @@ router.post("/create", profileController.createProfile);
  *       500:
  *         description: Failed to update profile
  */
-router.put("/update", profileController.updateProfile);
+router.put('/update', V.update, validate, profileController.updateProfile);
 
 /**
  * @swagger
@@ -110,7 +112,7 @@ router.put("/update", profileController.updateProfile);
  *       500:
  *         description: Failed to fetch profile
  */
-router.get("/get", profileController.getProfile);
+router.get('/get', profileController.getProfile);
 
 /**
  * @swagger
@@ -126,7 +128,7 @@ router.get("/get", profileController.getProfile);
  *       500:
  *         description: Failed to delete profile
  */
-router.delete("/delete", profileController.deleteProfile);
+router.delete('/delete', profileController.deleteProfile);
 
 module.exports = router;
 
