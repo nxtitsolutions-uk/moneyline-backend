@@ -24,7 +24,7 @@ const {authenticate} = require('../middlewares/authMiddleware');
 router.use('/auth', authRoutes);
 router.use('/s3', authenticate,s3Routes);
 router.use('/invitation',authenticate, invitationRoutes)
-router.use("/profile", profileRoutes);
+router.use("/profile",authenticate, profileRoutes);
 router.use('/user', authenticate, userRoutes);
 router.use('/cricket', authenticate, cricketRoutes);
 
