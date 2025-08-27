@@ -9,6 +9,7 @@ const invitationRoutes = require('./invitationRoute');
 const profileRoutes = require("./profileRoute");
 const userRoutes = require('./userRoute');
 const cricketRoutes = require('./cricketRoute');
+const sportRoutes = require('./sportRoute');
 
 
 
@@ -27,6 +28,7 @@ router.use('/invitation',authenticate, invitationRoutes)
 router.use("/profile",authenticate, profileRoutes);
 router.use('/user', authenticate, userRoutes);
 router.use('/cricket', authenticate, cricketRoutes);
+router.use('/sports', sportRoutes);
 
 
 module.exports = router;

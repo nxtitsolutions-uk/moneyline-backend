@@ -1,6 +1,7 @@
 const Profile = require("../models/profileModel");
 const User = require("../models/userModel");
 
+
 // ✅ Create Profile (All in one)
 exports.createProfile = async (req, res) => {
   try {
