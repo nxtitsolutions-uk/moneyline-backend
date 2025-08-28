@@ -101,3 +101,23 @@ exports.deleteProfile = async (req, res) => {
     res.status(500).json({ message: "Failed to delete profile" });
   }
 };
+
+exports.checkUsername = async (req, res) => {
+  try {
+    const { username } = req.query; // or req.body if you prefer POST
+    if (!username) {
+      return res.status(400).json({ message: "Username is required" });
+    }
+
+    const existing = await Profile.findOne({ username });
+    if (existing) {
+      return res.status(200).json({ available: false, message: "Username already taken" });
+    }
+
+    res.status(200).json({ available: true, message: "Username is available" });
+  } catch (error) {
+    console.error("Check username error:", error);
+    res.status(500).json({ message: "Failed to check username availability" });
+  }
+};
+

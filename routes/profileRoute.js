@@ -3,6 +3,7 @@ const router = express.Router();
 const profileController = require('../controllers/profileController');
 const validate = require('../middlewares/validate');          
 const V = require('../validators/profileValidator'); 
+const {authenticate} = require('../middlewares/authMiddleware');
 
 /**
  * @swagger
@@ -54,7 +55,7 @@ const V = require('../validators/profileValidator');
  *       500:
  *         description: Failed to create profile
  */
-router.post('/create', V.create, validate, profileController.createProfile);
+router.post('/create',authenticate, V.create, validate, profileController.createProfile);
 
 /**
  * @swagger
@@ -94,7 +95,7 @@ router.post('/create', V.create, validate, profileController.createProfile);
  *       500:
  *         description: Failed to update profile
  */
-router.put('/update', V.update, validate, profileController.updateProfile);
+router.put('/update',authenticate, V.update, validate, profileController.updateProfile);
 
 /**
  * @swagger
@@ -112,7 +113,7 @@ router.put('/update', V.update, validate, profileController.updateProfile);
  *       500:
  *         description: Failed to fetch profile
  */
-router.get('/get', profileController.getProfile);
+router.get('/get',authenticate, profileController.getProfile);
 
 /**
  * @swagger
@@ -128,7 +129,31 @@ router.get('/get', profileController.getProfile);
  *       500:
  *         description: Failed to delete profile
  */
-router.delete('/delete', profileController.deleteProfile);
+router.delete('/delete',authenticate, profileController.deleteProfile);
+
+/**
+ * @swagger
+ * /profile/check-username:
+ *   get:
+ *     summary: Check if a username is available
+ *     tags: [Profile]
+ *     parameters:
+ *       - in: query
+ *         name: username
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Username to check
+ *     responses:
+ *       200:
+ *         description: Returns whether the username is available
+ *       400:
+ *         description: Username not provided
+ *       500:
+ *         description: Failed to check username availability
+ */
+router.get('/check-username', profileController.checkUsername);
+
 
 module.exports = router;
 
