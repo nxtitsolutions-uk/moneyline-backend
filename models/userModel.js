@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema({
   // Meta
   isDeleted: { type: Boolean, default: false },
   isProfileCompleted: { type: Boolean, default: false },
+  isSocial: { type: Boolean, default: false },
+
 
 
 }, { timestamps: true });

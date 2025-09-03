@@ -5,7 +5,7 @@ const SportSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true }, // e.g., 'nba', 'cricket'
-    icon: { type: String }, // optional URL/path if you have one
+    icon: { type: String }, 
   },
   { timestamps: true }
 );
