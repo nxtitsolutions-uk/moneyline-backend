@@ -52,7 +52,9 @@ exports.signup = async (req, res) => {
       userData.password = await bcrypt.hash(password, 10);
     }
 
-    await User.create(userData);
+    // await User.create(userData);
+    const newUser = new User(userData);  
+    await newUser.save();
 
     return res.status(201).json({
       message: "Signup successful, OTP sent to email.",
