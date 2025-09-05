@@ -81,15 +81,17 @@ exports.handlePurchase = async (req, res) => {
       receipt = await validateIOSPurchase(purchaseData);
       const latestReceipt =
         receipt.latest_receipt_info?.[0] || receipt.receipt?.in_app?.[0];
-      productId = latestReceipt?.product_id;
+      productId = latestReceipt?.product_id || "com.app.premium_plan";
       originalTransactionId = latestReceipt?.original_transaction_id;
     } else {
       return res
         .status(400)
         .json({ success: false, message: "Unsupported device type" });
     }
+    console.log("===========productId iOS=========", productId);
 
     const plan = await SubscriptionPlan.findOne({ productId: productId });
+    console.log("===========plan=========", plan);
     if (!plan)
       return res.status(404).json({
         success: false,
@@ -97,21 +99,21 @@ exports.handlePurchase = async (req, res) => {
       });
 
     // Calculate expiry date based on plan duration
-    const startDate = new Date();
-    const expiryDate = calculateExpiryDate(startDate, plan.duration);
+    const subscriptionStartDate = new Date();
+    const subscriptionExpiryDate = calculateExpiryDate(subscriptionStartDate, plan.duration);
 
     // Create a new subscription record
     const subscriptionPayload = {
       userId,
-      planId: plan._id,
+      subscriptionId: plan._id,
       platform: deviceType,
       productId,
       purchaseToken:
         deviceType === "android" ? purchaseData.purchaseToken : null,
       originalTransactionId: originalTransactionId || null,
       isActive: true,
-      startDate,
-      expiryDate,
+      subscriptionStartDate,
+      subscriptionExpiryDate,
       lastValidatedAt: new Date(),
     };
 
@@ -124,9 +126,10 @@ exports.handlePurchase = async (req, res) => {
     );
 
     // Update user’s current subscription info to reflect latest purchase
-    user.subscriptionExpiryDate = expiryDate;
+    user.subscriptionExpiryDate = subscriptionExpiryDate;
     user.deviceType = deviceType;
     user.isSubscribed = true;
+    user.subscriptionType = plan.name;
 
     await user.save();
     const updatedUser = await User.findById(userId);
@@ -138,7 +141,7 @@ exports.handlePurchase = async (req, res) => {
       data: {
         user: updatedUser,
         plan: plan.name,
-        expires: expiryDate,
+        expires: subscriptionExpiryDate,
         platform: deviceType,
       },
     });

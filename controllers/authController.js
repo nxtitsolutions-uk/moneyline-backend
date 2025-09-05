@@ -173,6 +173,10 @@ exports.signin = async (req, res) => {
         provider: user.provider,
         isVerified: user.isVerified,
         isProfileCompleted: user.isProfileCompleted,
+        isSubscribed: user.isSubscribed,
+        subscriptionExpiryDate: user.subscriptionExpiryDate,
+        deviceType: user.deviceType,
+        subscriptionType: user.subscriptionType,
         profile,
       },
     });

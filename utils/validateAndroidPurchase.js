@@ -48,4 +48,4 @@ const validateAndroidPurchase = async (data) => {
   }
 };
 
-module.exports = validateAndroidPurchase;
+
