@@ -1,9 +1,9 @@
-const User = require('../models/userModel');
-const SubscriptionPlan = require('../models/subscriptionModel');
-const UserSubscription = require('../models/userSubscriptionModel');
-const validateAndroidPurchase = require('../utils/validateAndroidPurchase');
-const validateIOSPurchase = require('../utils/validateIOSPurchase');
-const { calculateExpiryDate } = require('../utils/helpers'); // Move helper function to utils for better reusability
+const User = require("../models/userModel");
+const SubscriptionPlan = require("../models/subscriptionModel");
+const UserSubscription = require("../models/userSubscriptionModel");
+const validateAndroidPurchase = require("../utils/validateAndroidPurchase");
+const validateIOSPurchase = require("../utils/validateIOSPurchase");
+const { calculateExpiryDate } = require("../utils/helpers"); // Move helper function to utils for better reusability
 
 // CRUD Operations
 
@@ -20,12 +20,14 @@ exports.createSubscriptionPlan = async (req, res) => {
     });
     await newPlan.save();
     return res.status(201).json({
-      message: 'Subscription plan created successfully',
+      message: "Subscription plan created successfully",
       subscriptionPlan: newPlan,
     });
   } catch (error) {
-    console.error('Error creating subscription plan:', error);
-    return res.status(500).json({ message: 'Server error creating subscription plan.' });
+    console.error("Error creating subscription plan:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error creating subscription plan." });
   }
 };
 
@@ -38,8 +40,10 @@ exports.getAllSubscriptionPlans = async (req, res) => {
       subscriptionPlans,
     });
   } catch (error) {
-    console.error('Error fetching subscription plans:', error);
-    return res.status(500).json({ message: 'Server error fetching subscription plans.' });
+    console.error("Error fetching subscription plans:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error fetching subscription plans." });
   }
 };
 
@@ -47,16 +51,25 @@ exports.getAllSubscriptionPlans = async (req, res) => {
 exports.handlePurchase = async (req, res) => {
   try {
     const { deviceType, purchaseData } = req.body;
-    console.log("===========deviceType==============", deviceType, purchaseData);
+    console.log(
+      "===========deviceType==============",
+      deviceType,
+      purchaseData
+    );
 
     const userId = req.user._id;
 
     if (!deviceType || !purchaseData) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     let receipt, productId, originalTransactionId;
 
@@ -66,15 +79,22 @@ exports.handlePurchase = async (req, res) => {
       productId = purchaseData.productId;
     } else if (deviceType === "ios") {
       receipt = await validateIOSPurchase(purchaseData);
-      const latestReceipt = receipt.latest_receipt_info?.[0] || receipt.receipt?.in_app?.[0];
+      const latestReceipt =
+        receipt.latest_receipt_info?.[0] || receipt.receipt?.in_app?.[0];
       productId = latestReceipt?.product_id;
       originalTransactionId = latestReceipt?.original_transaction_id;
     } else {
-      return res.status(400).json({ success: false, message: "Unsupported device type" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Unsupported device type" });
     }
 
     const plan = await SubscriptionPlan.findOne({ productId: productId });
-    if (!plan) return res.status(404).json({ success: false, message: "No matching subscription plan found" });
+    if (!plan)
+      return res.status(404).json({
+        success: false,
+        message: "No matching subscription plan found",
+      });
 
     // Calculate expiry date based on plan duration
     const startDate = new Date();
@@ -86,7 +106,8 @@ exports.handlePurchase = async (req, res) => {
       planId: plan._id,
       platform: deviceType,
       productId,
-      purchaseToken: deviceType === "android" ? purchaseData.purchaseToken : null,
+      purchaseToken:
+        deviceType === "android" ? purchaseData.purchaseToken : null,
       originalTransactionId: originalTransactionId || null,
       isActive: true,
       startDate,
@@ -103,10 +124,9 @@ exports.handlePurchase = async (req, res) => {
     );
 
     // Update user’s current subscription info to reflect latest purchase
-    user.subscriptionEndDate = expiryDate;
+    user.subscriptionExpiryDate = expiryDate;
     user.deviceType = deviceType;
-    user.isPayment = true;
-    user.profileCompleted = 3; // Assuming 3 means the profile is completed
+    user.isSubscribed = true;
 
     await user.save();
     const updatedUser = await User.findById(userId);
@@ -151,8 +171,10 @@ exports.updateSubscriptionPlan = async (req, res) => {
       subscriptionPlan: updatedPlan,
     });
   } catch (error) {
-    console.error('Error updating subscription plan:', error);
-    return res.status(500).json({ message: 'Server error updating subscription plan.' });
+    console.error("Error updating subscription plan:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error updating subscription plan." });
   }
 };
 
@@ -171,7 +193,9 @@ exports.deleteSubscriptionPlan = async (req, res) => {
       message: "Subscription plan deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting subscription plan:', error);
-    return res.status(500).json({ message: 'Server error deleting subscription plan.' });
+    console.error("Error deleting subscription plan:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error deleting subscription plan." });
   }
 };

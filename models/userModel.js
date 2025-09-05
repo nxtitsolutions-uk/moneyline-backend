@@ -1,44 +1,63 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
-const RefreshToken = require('../models/refreshTokenModel');
-const Profile = require('../models/profileModel');
-const NotificationSettings = require('../models/notificationSettingsModel'); // Import the NotificationSettings model
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const RefreshToken = require("../models/refreshTokenModel");
+const Profile = require("../models/profileModel");
+const NotificationSettings = require("../models/notificationSettingsModel"); // Import the NotificationSettings model
 
-const userSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
-  password: { type: String },
+const userSchema = new mongoose.Schema(
+  {
+    email: { type: String, unique: true, required: true },
+    password: { type: String },
 
-  // OTP Verification
-  isVerified: { type: Boolean, default: false },
-  canResetPassword: { type: Boolean, default: false },
-  otp: { type: String },
-  otpExpiry: { type: Date },
+    // OTP Verification
+    isVerified: { type: Boolean, default: false },
+    canResetPassword: { type: Boolean, default: false },
+    otp: { type: String },
+    otpExpiry: { type: Date },
 
-  // Social Providers
-  provider: { type: String, default: 'email', enum: ['email', 'google', 'apple'] },
-  googleId: { type: String, unique: true, sparse: true },
-  appleId: { type: String, unique: true, sparse: true },
+    // Social Providers
+    provider: {
+      type: String,
+      default: "email",
+      enum: ["email", "google", "apple"],
+    },
+    googleId: { type: String, unique: true, sparse: true },
+    appleId: { type: String, unique: true, sparse: true },
 
-  // Role Management
-  role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    // Role Management
+    role: { type: String, enum: ["user", "admin"], default: "user" },
 
-  // Subscription
-  subscriptionType: { type: String, enum: ['free', 'basic', 'premium'], default: 'free' },
+    // Subscription
+    subscriptionType: {
+      type: String,
+      enum: ["free", "basic", "premium"],
+      default: "free",
+    },
+    subscriptionExpiryDate: { type: Date, required: true },
 
-  // Meta
-  isDeleted: { type: Boolean, default: false },
-  isProfileCompleted: { type: Boolean, default: false },
-  isSocial: { type: Boolean, default: false },
+    // device type
+    deviceType: {
+      type: String,
+      enum: ["android", "ios"],
+      default: "android",
+    },
 
-}, { timestamps: true });
+    // Meta
+    isDeleted: { type: Boolean, default: false },
+    isSubscribed: { type: Boolean, default: false },
+    isProfileCompleted: { type: Boolean, default: false },
+    isSocial: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
 
 // Pre-save middleware to create default notification settings
-userSchema.pre('save', async function (next) {
+userSchema.pre("save", async function (next) {
   if (this.isNew) {
     try {
       // Create default notification settings for the newly created user
       const notificationSettings = new NotificationSettings({
-        userId: this._id,  // Use the user's _id once it's generated
+        userId: this._id, // Use the user's _id once it's generated
         preferences: {
           game_reminders: false,
           voting_updates: false,
@@ -46,20 +65,24 @@ userSchema.pre('save', async function (next) {
       });
 
       await notificationSettings.save(); // Save the notification settings
-      console.log(`✅ Default notification settings created for user: ${this._id}`);
-      next();  // Continue saving the user
+      console.log(
+        `✅ Default notification settings created for user: ${this._id}`
+      );
+      next(); // Continue saving the user
     } catch (error) {
-      console.error(`❌ Error creating notification settings for user: ${this._id}`, error);
-      next(error);  // If error, pass it to the next middleware
+      console.error(
+        `❌ Error creating notification settings for user: ${this._id}`,
+        error
+      );
+      next(error); // If error, pass it to the next middleware
     }
   } else {
-    next();  // If not new, just continue with saving
+    next(); // If not new, just continue with saving
   }
 });
 
-
 // Hook to clean up associated data upon user deletion
-userSchema.post('findOneAndDelete', async function (doc) {
+userSchema.post("findOneAndDelete", async function (doc) {
   if (!doc) return;
 
   const userId = doc._id;
@@ -77,4 +100,4 @@ userSchema.post('findOneAndDelete', async function (doc) {
   }
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);

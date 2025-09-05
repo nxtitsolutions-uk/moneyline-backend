@@ -43,7 +43,12 @@ const { authenticate, restrictTo } = require("../middlewares/authMiddleware");
  *       500:
  *         description: Server error
  */
-router.post("/create", authenticate, restrictTo("admin"), subscriptionController.createSubscriptionPlan);
+router.post(
+  "/create",
+  authenticate,
+  restrictTo("admin"),
+  subscriptionController.createSubscriptionPlan
+);
 
 /**
  * @swagger
@@ -87,7 +92,12 @@ router.post("/create", authenticate, restrictTo("admin"), subscriptionController
  *       500:
  *         description: Server error
  */
-router.patch("/:id", authenticate, restrictTo("admin"), subscriptionController.updateSubscriptionPlan);
+router.patch(
+  "/:id",
+  authenticate,
+  restrictTo("admin"),
+  subscriptionController.updateSubscriptionPlan
+);
 
 /**
  * @swagger
@@ -112,7 +122,12 @@ router.patch("/:id", authenticate, restrictTo("admin"), subscriptionController.u
  *       500:
  *         description: Server error
  */
-router.delete("/:id", authenticate, restrictTo("admin"), subscriptionController.deleteSubscriptionPlan);
+router.delete(
+  "/:id",
+  authenticate,
+  restrictTo("admin"),
+  subscriptionController.deleteSubscriptionPlan
+);
 
 /**
  * @swagger
@@ -132,9 +147,12 @@ router.get("/", authenticate, subscriptionController.getAllSubscriptionPlans);
 
 /**
  * @swagger
- * /user/subscribe:
+ * /subscription/subscribe:
  *   post:
- *     summary: Subscribe a user to a subscription plan
+ *     summary: Verify a mobile purchase and activate a subscription
+ *     description: >
+ *       Validates an Android or iOS purchase and creates/updates the user's active subscription.
+ *       Provide *deviceType* as "android" or "ios" and the corresponding *purchaseData* payload.
  *     tags: [Subscription]
  *     security:
  *       - bearerAuth: []
@@ -143,21 +161,135 @@ router.get("/", authenticate, subscriptionController.getAllSubscriptionPlans);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               user_id:
- *                 type: string
- *               plan_id:
- *                 type: string
- *               receipt:
- *                 type: string
+ *             oneOf:
+ *               - type: object
+ *                 required: [deviceType, purchaseData]
+ *                 properties:
+ *                   deviceType:
+ *                     type: string
+ *                     enum: [android]
+ *                   purchaseData:
+ *                     type: object
+ *                     required: [productId, purchaseToken]
+ *                     properties:
+ *                       productId:
+ *                         type: string
+ *                         description: Play Billing product ID (must match a SubscriptionPlan.productId)
+ *                         example: com.myapp.pro.monthly
+ *                       purchaseToken:
+ *                         type: string
+ *                         description: Play Billing purchase token
+ *                         example: abcdefg.hijklmnop.qrstuv
+ *                       orderId:
+ *                         type: string
+ *                         description: (Optional) Google order ID
+ *                         example: GPA.1234-5678-9012-34567
+ *               - type: object
+ *                 required: [deviceType, purchaseData]
+ *                 properties:
+ *                   deviceType:
+ *                     type: string
+ *                     enum: [ios]
+ *                   purchaseData:
+ *                     type: object
+ *                     required: [receiptData]
+ *                     properties:
+ *                       receiptData:
+ *                         type: string
+ *                         description: Base64-encoded App Store receipt
+ *                         example: MIIX2QYJKoZIhvcNAQcCoIIXyjCCF8YCAQExCzAJBgUrDgMCGgUAM...
+ *           examples:
+ *             android:
+ *               summary: Android example
+ *               value:
+ *                 deviceType: android
+ *                 purchaseData:
+ *                   productId: com.myapp.pro.monthly
+ *                   purchaseToken: abcdefg.hijklmnop.qrstuv
+ *                   orderId: GPA.1234-5678-9012-34567
+ *             ios:
+ *               summary: iOS example
+ *               value:
+ *                 deviceType: ios
+ *                 purchaseData:
+ *                   receiptData: MIIX2QYJKoZIhvcNAQcCoIIXyjCCF8YCAQExCzAJBgUrDgMCGgUAM...
  *     responses:
  *       200:
- *         description: User subscribed successfully
+ *         description: Subscription verified and activated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Subscription verified successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       description: Updated user document
+ *                     plan:
+ *                       type: string
+ *                       description: Subscription plan name
+ *                       example: Pro Monthly
+ *                     expires:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Subscription expiry date
+ *                     platform:
+ *                       type: string
+ *                       enum: [android, ios]
+ *                       example: android
  *       400:
- *         description: Invalid product ID or verification failure
+ *         description: Bad request (missing fields or unsupported device type)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Missing required fields
+ *       404:
+ *         description: User or matching subscription plan not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: No matching subscription plan found
  *       500:
- *         description: Server error
+ *         description: Server error while validating purchase
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Failed to validate purchase
+ *                 error:
+ *                   type: string
+ *                   example: Validation service timeout
  */
 router.post("/subscribe", authenticate, subscriptionController.handlePurchase);
 
