@@ -42,4 +42,5 @@ const validateIOSPurchase = async (data) => {
   }
 };
 
+module.exports = validateIOSPurchase;   
 
