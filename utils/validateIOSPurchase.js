@@ -16,7 +16,7 @@ const validateIOSPurchase = async (data) => {
   };
 
   // Use sandbox or production endpoint based on environment
-  const endpoint = process.env.NODE_ENV === 'development'
+  const endpoint = process.env.NODE_ENV === 'production'
     ? 'https://buy.itunes.apple.com/verifyReceipt'
     : 'https://sandbox.itunes.apple.com/verifyReceipt';
   console.log("=============endpoint================", endpoint)
