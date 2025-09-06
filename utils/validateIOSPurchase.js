@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 
 const validateIOSPurchase = async (data) => {
   console.log("===========data==============", data)
-  const receiptData = data.transactionReceipt;
+  const receiptData = data.receiptData.transactionReceipt;
   console.log("===========receiptData==============", data.transactionReceipt )
   if (!receiptData) {
     throw new Error('Missing iOS receipt data');
@@ -16,7 +16,7 @@ const validateIOSPurchase = async (data) => {
   };
 
   // Use sandbox or production endpoint based on environment
-  const endpoint = process.env.NODE_ENV === 'production'
+  const endpoint = process.env.NODE_ENV === 'development'
     ? 'https://buy.itunes.apple.com/verifyReceipt'
     : 'https://sandbox.itunes.apple.com/verifyReceipt';
   console.log("=============endpoint================", endpoint)

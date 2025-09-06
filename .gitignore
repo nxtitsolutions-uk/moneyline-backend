@@ -3,7 +3,7 @@ node_modules/
 
 # Environment
 .env
-local.env
+config.env
 
 # Logs
 logs/
