@@ -33,7 +33,7 @@ const userSchema = new mongoose.Schema(
       enum: ["free", "basic", "premium"],
       default: "free",
     },
-    subscriptionExpiryDate: { type: Date, required: true },
+    subscriptionExpiryDate: { type: Date,default: null },
 
     // device type
     deviceType: {
