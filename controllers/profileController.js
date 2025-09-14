@@ -1,5 +1,6 @@
 const Profile = require("../models/profileModel");
 const User = require("../models/userModel");
+const NotificationSettings = require('../models/notificationSettingsModel');
 
 
 // ✅ Create Profile (All in one)
@@ -19,6 +20,7 @@ exports.createProfile = async (req, res) => {
       return res.status(400).json({ message: "Profile already exists." });
     }
 
+    // ✅ Create new profile
     const profile = await Profile.create({
       user: req.user._id,
       name,
@@ -28,9 +30,46 @@ exports.createProfile = async (req, res) => {
       favoriteTeams: favoriteTeams || {},
     });
 
-    await User.findByIdAndUpdate(req.user._id, { isProfileCompleted: true });
+    // ✅ Update user to mark profile as completed
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { isProfileCompleted: true },
+      { new: true }
+    ).lean();
 
-    res.status(201).json({ message: "Profile created successfully", profile });
+    // 👤 Include the profile
+    const fullProfile = await Profile.findOne({ user: user._id }).lean();
+
+    // 🔔 Include the notification settings (create default if not exist)
+    let notifications = await NotificationSettings.findOne({ userId: user._id }).lean();
+    if (!notifications) {
+      notifications = await NotificationSettings.create({
+        userId: user._id,
+        preferences: {
+          game_reminders: true,
+          voting_updates: true,
+        },
+      });
+    }
+
+    // ✅ Respond with user, profile, and notification settings
+    res.status(201).json({
+      message: "Profile created successfully",
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        provider: user.provider,
+        isVerified: user.isVerified,
+        isProfileCompleted: user.isProfileCompleted,
+        isSubscribed: user.isSubscribed,
+        subscriptionExpiryDate: user.subscriptionExpiryDate,
+        deviceType: user.deviceType,
+        subscriptionType: user.subscriptionType,
+        profile: fullProfile,
+        notifications, // included notification settings
+      },
+    });
   } catch (error) {
     console.error("Create profile error:", error);
     res.status(500).json({ message: "Failed to create profile" });
@@ -40,21 +79,52 @@ exports.createProfile = async (req, res) => {
 // ✅ Get Profile
 exports.getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ user: req.user._id }).populate({
-      path: "user",
-      select: "email role isVerified isProfileCompleted",
-    });
-
-    if (!profile) {
-      return res.status(404).json({ message: "Profile not found" });
+    // Fetch the user
+    const user = await User.findById(req.user._id).lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ profile });
+    // Fetch the profile
+    const profile = await Profile.findOne({ user: user._id }).lean();
+
+    // Fetch notification settings
+    let notifications = await NotificationSettings.findOne({ userId: user._id }).lean();
+    if (!notifications) {
+      // create default settings if they don't exist
+      notifications = await NotificationSettings.create({
+        userId: user._id,
+        preferences: {
+          game_reminders: true,
+          voting_updates: true,
+        },
+      });
+    }
+
+    // Respond with full user object
+    res.status(200).json({
+      message: "Profile fetched successfully",
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        provider: user.provider,
+        isVerified: user.isVerified,
+        isProfileCompleted: user.isProfileCompleted,
+        isSubscribed: user.isSubscribed,
+        subscriptionExpiryDate: user.subscriptionExpiryDate,
+        deviceType: user.deviceType,
+        subscriptionType: user.subscriptionType,
+        profile,
+        notifications,
+      },
+    });
   } catch (error) {
     console.error("Get profile error:", error);
     res.status(500).json({ message: "Failed to fetch profile" });
   }
 };
+
 
 // ✅ Update Profile (any field)
 exports.updateProfile = async (req, res) => {

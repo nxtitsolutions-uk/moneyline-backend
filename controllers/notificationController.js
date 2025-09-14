@@ -2,8 +2,7 @@ const NotificationSettings = require('../models/notificationSettingsModel');
 
 // Controller to update user notification settings
 exports.updateNotificationSettings = async (req, res) => {
-  try {
-    
+  try { 
     // Extract the userId from the request (assuming userId is stored in req.user)
     const userId = req.user._id;
     const { game_reminders, voting_updates } = req.body.preferences;
