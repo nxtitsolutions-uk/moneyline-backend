@@ -8,6 +8,8 @@ const Invitation = require("../models/invitationModel");
 const { generateOtp } = require("../utils/generateOtp");
 const { sendOtpEmail } = require("../services/emailService");
 const { applyReferralToUser } = require("../controllers/invitationController");
+const NotificationSettings = require('../models/notificationSettingsModel');
+
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -161,6 +163,17 @@ exports.signin = async (req, res) => {
 
     // 👤 Fetch profile
     const profile = await Profile.findOne({ user: user._id }).lean();
+        // 🔔 Include the notification settings (create default if not exist)
+        let notifications = await NotificationSettings.findOne({ userId: user._id }).lean();
+        if (!notifications) {
+          notifications = await NotificationSettings.create({
+            userId: user._id,
+            preferences: {
+              game_reminders: true,
+              voting_updates: true,
+            },
+          });
+        }
 
     res.status(200).json({
       message: "Signin successful.",
@@ -178,6 +191,7 @@ exports.signin = async (req, res) => {
         deviceType: user.deviceType,
         subscriptionType: user.subscriptionType,
         profile,
+        notifications
       },
     });
   } catch (error) {
