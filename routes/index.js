@@ -16,6 +16,10 @@ const feedbackRoutes = require('./feedbackRoute');
 const aboutRoutes = require('./aboutAppRoute');
 const termsRoutes = require('./termsAndConditionsRoute');
 const privacyRoutes = require('./privacyPolicyRoute');
+const postRoutes = require('./postRoute');
+const commentRoutes = require('./commentRoute');
+const reactionRoutes = require('./reactionRoute');
+const reportRoutes = require('./reportRoute');
 
 
 
@@ -41,6 +45,10 @@ router.use('/cricket', authenticate, cricketRoutes);
 router.use('/sports', sportRoutes);
 router.use('/subscription', authenticate, subscriptionRoutes);
 router.use('/notification', authenticate, notificationRoutes);
+router.use('/posts', authenticate, postRoutes);
+router.use('/comments', authenticate, commentRoutes);
+router.use('/reactions', authenticate, reactionRoutes);
+router.use('/reports', authenticate, reportRoutes);
 
 
 module.exports = router;
