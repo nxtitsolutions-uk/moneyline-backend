@@ -18,7 +18,7 @@ exports.createPost = async (req, res) => {
     await post.populate({
       path: "user",
       select: "name profilePicture", // Select the name and profilePicture fields
-    }).execPopulate();
+    });
 
     res.status(201).json({ status: "success", post });
   } catch (error) {
