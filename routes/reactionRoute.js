@@ -47,4 +47,124 @@ const reactionController = require("../controllers/reactionController");
  */
 router.post("/create", reactionController.createReaction);
 
+/**
+ * @swagger
+ * /reactions/get:
+ *   get:
+ *     summary: Get all reactions (optional filter by postId or commentId)
+ *     tags: [Reaction]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: postId
+ *         schema:
+ *           type: string
+ *         description: Filter reactions by post ID.
+ *       - in: query
+ *         name: commentId
+ *         schema:
+ *           type: string
+ *         description: Filter reactions by comment ID.
+ *     responses:
+ *       200:
+ *         description: A list of reactions.
+ *       401:
+ *         description: Unauthorized.
+ *       500:
+ *         description: Server error.
+ */
+router.get("/get", reactionController.getAllReactions);
+
+/**
+ * @swagger
+ * /reactions/get/{id}:
+ *   get:
+ *     summary: Get a reaction by ID
+ *     tags: [Reaction]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the reaction.
+ *     responses:
+ *       200:
+ *         description: Reaction retrieved successfully.
+ *       404:
+ *         description: Reaction not found.
+ *       500:
+ *         description: Server error.
+ */
+router.get("/get/:id", reactionController.getReactionById);
+
+/**
+ * @swagger
+ * /reactions/update/{id}:
+ *   put:
+ *     summary: Update a reaction
+ *     tags: [Reaction]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the reaction.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [like, dislike]
+ *                 description: Updated reaction type.
+ *                 example: "dislike"
+ *     responses:
+ *       200:
+ *         description: Reaction updated successfully.
+ *       403:
+ *         description: Unauthorized - you cannot update this reaction.
+ *       404:
+ *         description: Reaction not found.
+ *       500:
+ *         description: Failed to update reaction.
+ */
+router.put("/update/:id", reactionController.updateReaction);
+
+/**
+ * @swagger
+ * /reactions/delete/{id}:
+ *   delete:
+ *     summary: Delete a reaction
+ *     tags: [Reaction]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the reaction.
+ *     responses:
+ *       200:
+ *         description: Reaction deleted successfully.
+ *       403:
+ *         description: Unauthorized - you cannot delete this reaction.
+ *       404:
+ *         description: Reaction not found.
+ *       500:
+ *         description: Failed to delete reaction.
+ */
+router.delete("/delete/:id", reactionController.deleteReaction);
+
 module.exports = router;
