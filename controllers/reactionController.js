@@ -1,4 +1,6 @@
 const Reaction = require("../models/reactionModel");
+const Post = require("../models/postModel");
+const Comment = require("../models/commentModel");
 
 /**
  * Create a new reaction
@@ -16,7 +18,14 @@ exports.createReaction = async (req, res) => {
 
     await reaction.save();
 
-    await reaction.populate("user", "name profilePicture");
+    await reaction.populate({
+      path: "user",
+      select: "email role",
+      populate: {
+        path: "profile",
+        select: "name profilePicture username",
+      },
+    });
 
     res.status(201).json({ status: "success", reaction });
   } catch (error) {
@@ -37,7 +46,14 @@ exports.getAllReactions = async (req, res) => {
     if (commentId) filter.comment = commentId;
 
     const reactions = await Reaction.find(filter)
-      .populate("user", "name profilePicture")
+      .populate({
+        path: "user",
+        select: "email role",
+        populate: {
+          path: "profile",
+          select: "name profilePicture username",
+        },
+      })
       .lean();
 
     res.status(200).json({ status: "success", count: reactions.length, reactions });
@@ -55,7 +71,14 @@ exports.getReactionById = async (req, res) => {
     const reactionId = req.params.id;
 
     const reaction = await Reaction.findById(reactionId)
-      .populate("user", "name profilePicture")
+      .populate({
+        path: "user",
+        select: "email role",
+        populate: {
+          path: "profile",
+          select: "name profilePicture username",
+        },
+      })
       .lean();
 
     if (!reaction) {
@@ -70,7 +93,7 @@ exports.getReactionById = async (req, res) => {
 };
 
 /**
- * Update a reaction
+ * Update a reaction (only reaction owner can update)
  */
 exports.updateReaction = async (req, res) => {
   try {
@@ -88,10 +111,16 @@ exports.updateReaction = async (req, res) => {
     }
 
     reaction.type = type || reaction.type;
-
     await reaction.save();
 
-    await reaction.populate("user", "name profilePicture");
+    await reaction.populate({
+      path: "user",
+      select: "email role",
+      populate: {
+        path: "profile",
+        select: "name profilePicture username",
+      },
+    });
 
     res.status(200).json({ status: "success", reaction });
   } catch (error) {
@@ -102,22 +131,45 @@ exports.updateReaction = async (req, res) => {
 
 /**
  * Delete a reaction
+ * Allowed: reaction owner, post owner, or comment owner
  */
 exports.deleteReaction = async (req, res) => {
   try {
     const reactionId = req.params.id;
-
-    const reaction = await Reaction.findById(reactionId);
+    const reaction = await Reaction.findById(reactionId).lean();
 
     if (!reaction) {
       return res.status(404).json({ message: "Reaction not found" });
     }
 
-    if (reaction.user.toString() !== req.user._id.toString()) {
+    let postOwnerId = null;
+    let commentOwnerId = null;
+
+    // If linked to a post, fetch post owner
+    if (reaction.post) {
+      const post = await Post.findById(reaction.post).lean();
+      if (post) postOwnerId = post.user.toString();
+    }
+
+    // If linked to a comment, fetch comment owner and also post owner
+    if (reaction.comment) {
+      const comment = await Comment.findById(reaction.comment).lean();
+      if (comment) {
+        commentOwnerId = comment.user.toString();
+        const post = await Post.findById(comment.post).lean();
+        if (post) postOwnerId = post.user.toString();
+      }
+    }
+
+    const isReactionOwner = reaction.user.toString() === req.user._id.toString();
+    const isPostOwner = postOwnerId && postOwnerId === req.user._id.toString();
+    const isCommentOwner = commentOwnerId && commentOwnerId === req.user._id.toString();
+
+    if (!isReactionOwner && !isPostOwner && !isCommentOwner) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    await reaction.remove();
+    await Reaction.findByIdAndDelete(reactionId);
 
     res.status(200).json({ message: "Reaction deleted successfully" });
   } catch (error) {

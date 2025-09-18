@@ -1,5 +1,6 @@
 const Comment = require("../models/commentModel");
 const Profile = require("../models/profileModel");
+const Post = require("../models/postModel");
 
 exports.createComment = async (req, res) => {
   try {
@@ -60,25 +61,35 @@ exports.updateComment = async (req, res) => {
   }
 };
 
+// Delete a Single Comment (allowed: comment owner OR post owner)
 exports.deleteComment = async (req, res) => {
   try {
     const commentId = req.params.id;
 
-    const comment = await Comment.findById(commentId);
-
+    const comment = await Comment.findById(commentId).lean();
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
 
-    if (comment.user.toString() !== req.user._id.toString()) {
+    // Fetch the related post to check post owner
+    const post = await Post.findById(comment.post).lean();
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Authorization: either comment owner or post owner can delete
+    const isCommentOwner = comment.user.toString() === req.user._id.toString();
+    const isPostOwner = post.user.toString() === req.user._id.toString();
+
+    if (!isCommentOwner && !isPostOwner) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    await comment.remove();
+    await Comment.findByIdAndDelete(commentId);
 
     res.status(200).json({ message: "Comment deleted successfully" });
   } catch (error) {
-    console.error("Error deleting comment:", error);
+    console.error("❌ Error deleting comment:", error);
     res.status(500).json({ message: "Failed to delete comment" });
   }
 };

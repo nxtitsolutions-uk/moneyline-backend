@@ -46,19 +46,34 @@ router.post("/create", postController.createPost);
  * @swagger
  * /posts/get:
  *   get:
- *     summary: Get all posts
+ *     summary: Get all posts (with pagination)
+ *     description: Retrieve posts with their comments and reactions. Supports pagination using query parameters.
  *     tags: [Post]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination.
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of posts per page.
  *     responses:
  *       200:
- *         description: A list of all posts with comments and reactions.
+ *         description: A list of posts with comments, reactions, and pagination metadata.
  *       401:
  *         description: Unauthorized.
  *       500:
  *         description: Server error.
  */
 router.get("/get", postController.getAllPosts);
+
 
 /**
  * @swagger

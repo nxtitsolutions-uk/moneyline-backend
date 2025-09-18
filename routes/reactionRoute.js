@@ -105,7 +105,7 @@ router.get("/get/:id", reactionController.getReactionById);
  * @swagger
  * /reactions/update/{id}:
  *   put:
- *     summary: Update a reaction
+ *     summary: Update a reaction (only the reaction owner can update)
  *     tags: [Reaction]
  *     security:
  *       - bearerAuth: []
@@ -132,7 +132,7 @@ router.get("/get/:id", reactionController.getReactionById);
  *       200:
  *         description: Reaction updated successfully.
  *       403:
- *         description: Unauthorized - you cannot update this reaction.
+ *         description: Unauthorized - only the reaction owner can update.
  *       404:
  *         description: Reaction not found.
  *       500:
@@ -145,6 +145,7 @@ router.put("/update/:id", reactionController.updateReaction);
  * /reactions/delete/{id}:
  *   delete:
  *     summary: Delete a reaction
+ *     description: Only the reaction owner, post owner, or comment owner can delete a reaction.
  *     tags: [Reaction]
  *     security:
  *       - bearerAuth: []
@@ -154,16 +155,16 @@ router.put("/update/:id", reactionController.updateReaction);
  *         required: true
  *         schema:
  *           type: string
- *         description: The ID of the reaction.
+ *         description: The ID of the reaction
  *     responses:
  *       200:
- *         description: Reaction deleted successfully.
+ *         description: Reaction deleted successfully
  *       403:
- *         description: Unauthorized - you cannot delete this reaction.
+ *         description: Unauthorized - only the reaction owner, post owner, or comment owner can delete
  *       404:
- *         description: Reaction not found.
+ *         description: Reaction not found
  *       500:
- *         description: Failed to delete reaction.
+ *         description: Failed to delete reaction
  */
 router.delete("/delete/:id", reactionController.deleteReaction);
 
