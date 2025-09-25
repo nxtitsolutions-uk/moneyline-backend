@@ -20,6 +20,7 @@ const postRoutes = require('./postRoute');
 const commentRoutes = require('./commentRoute');
 const reactionRoutes = require('./reactionRoute');
 const reportRoutes = require('./reportRoute');
+const footballRoutes = require('./footballRoute');
 
 
 
@@ -49,6 +50,7 @@ router.use('/posts', authenticate, postRoutes);
 router.use('/comments', authenticate, commentRoutes);
 router.use('/reactions', authenticate, reactionRoutes);
 router.use('/reports', authenticate, reportRoutes);
+router.use('/football', footballRoutes);
 
 
 module.exports = router;
