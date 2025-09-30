@@ -5,6 +5,7 @@ const profileModel = require("../models/profileModel");
 const refreshTokenModel = require("../models/refreshTokenModel");
 const userModel = require("../models/userModel");
 const deletedUserModel = require("../models/deletedUserModel");
+const notificationSettingsModel = require("../models/notificationSettingsModel");
 
 // PATCH /users/:id — Update user profile (admin or user self)
 exports.updateUser = async (req, res) => {
@@ -144,38 +145,37 @@ exports.getUserCoins = async (req, res) => {
   }
 };
 
-// exports.getAllUsers = async (req, res) => {
-//   try {
-//     const users = await User.find({ isDeleted: false })
-//       .select("-password -otp -otpExpiry -__v") // Exclude sensitive fields
-//       .lean(); // Use lean for better performance
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({ isDeleted: false })
+      .select("-password -otp -otpExpiry -__v") // Exclude sensitive fields
+      .lean(); // Use lean for better performance
 
-//     const populatedUsers = await Promise.all(
-//       users.map(async (user) => {
-//         const profile = await profileModel.findOne({ user: user._id }).lean();
-//         const notificationSetting = await notificationSettingModel
-//           .findOne({
-//             user: user._id,
-//           })
-//           .lean();
+    const populatedUsers = await Promise.all(
+      users.map(async (user) => {
+        const profile = await profileModel.findOne({ user: user._id }).lean();
+        const notificationSetting = await notificationSettingsModel
+          .findOne({
+            user: user._id,
+          })
+          .lean();
 
-//         return {
-//           ...user,
-//           profile,
-//           notificationSetting,
-//         };
-//       })
-//     );
+        return {
+          ...user,
+          profile,
+          notificationSetting,
+        };
+      })
+    );
 
-//     res.status(200).json({ success: true, users: populatedUsers });
-//   } catch (error) {
-//     console.error("Error fetching users:", error);
-//     res.status(500).json({ success: false, message: "Failed to fetch users" });
-//   }
-// };
+    res.status(200).json({ success: true, users: populatedUsers });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch users" });
+  }
+};
 
 // Toggle block/unblock user
-
 
 exports.blockUser = async (req, res) => {
   const { id } = req.params;

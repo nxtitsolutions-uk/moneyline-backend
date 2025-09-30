@@ -134,7 +134,7 @@ router.patch(
  */
 router.get("/coins", userController.getUserCoins);
 
-// router.get("/list", userController.getAllUsers);
+router.get("/list", userController.getAllUsers);
 
 router.patch("/block/:id", authenticate, userController.blockUser);
 
