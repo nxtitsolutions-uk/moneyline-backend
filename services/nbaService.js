@@ -3,7 +3,7 @@ const axios = require("axios");
 require("dotenv").config();
 
 let key = process.env.API_SPORTS_KEY;
-console.log("👉 Using Key:", JSON.stringify(key));
+// console.log("👉 Using Key:", JSON.stringify(key));
 
 const api = axios.create({
   baseURL: "https://v2.nba.api-sports.io",
