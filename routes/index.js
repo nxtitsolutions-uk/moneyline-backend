@@ -20,6 +20,8 @@ const commentRoutes = require('./commentRoute');
 const reactionRoutes = require('./reactionRoute');
 const reportRoutes = require('./reportRoute');
 const footballRoutes = require('./footballRoute');
+const nbaRoutes = require('./nbaRoute');
+const nflRoutes = require('./nflRoute');
 
 
 
@@ -49,6 +51,7 @@ router.use('/comments', authenticate, commentRoutes);
 router.use('/reactions', authenticate, reactionRoutes);
 router.use('/reports', authenticate, reportRoutes);
 router.use('/football', footballRoutes);
-
+router.use('/nba', nbaRoutes);
+router.use('/nfl', nflRoutes);
 
 module.exports = router;
