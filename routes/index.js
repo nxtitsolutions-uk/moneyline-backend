@@ -22,6 +22,7 @@ const reportRoutes = require('./reportRoute');
 const footballRoutes = require('./footballRoute');
 // const nbaRoutes = require('./nbaRoute');
 const nflRoutes = require('./nflRoute');
+const adminVoteRoute = require('./adminVoteRoute');
 
 
 
@@ -53,5 +54,6 @@ router.use('/reports', authenticate, reportRoutes);
 router.use('/football', footballRoutes);
 // router.use('/nba', nbaRoutes);
 router.use('/nfl', nflRoutes);
+router.use('/admin', adminVoteRoute);
 
 module.exports = router;
