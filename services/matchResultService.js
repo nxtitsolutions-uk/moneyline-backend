@@ -1,36 +1,24 @@
 // services/matchResultService.js
-// One place to read results from your existing live services without changing them.
-// Currently implemented for NFL using your americanFootball service.
-// Extend switch-case for NBA, SOCCER, etc. as you add their services.
+// Retrieves normalized and full match data from live APIs (currently NFL)
 
 const dayjs = require("dayjs");
 
-function toStr(v) {
-  return v === undefined || v === null ? "" : String(v);
-}
-
-// Import your existing NFL fetcher (do NOT modify existing service)
 let fetchAmericanFootballData;
 try {
-  // You showed two variations; prefer americanFootballService.js
   ({ fetchAmericanFootballData } = require("./americanFootballService"));
 } catch {
-  // fallback: if your project exports it from nflService
   ({ fetchAmericanFootballData } = require("./nflService"));
 }
 
+const toStr = (v) => (v === undefined || v === null ? "" : String(v));
+
 /**
- * Normalize common game fields for UI cards and correctness checks.
- * Return shape:
+ * Returns both normalized fields for UI and full JSON for archival.
  * {
- *   finished: boolean,
- *   winnerTeamId?: string,
- *   winnerTeamName?: string,
- *   leagueName?: string,
- *   scheduledAt?: Date,
- *   status?: string, // "NS","LIVE","FT"...
- *   home: { id, name, logo, score },
- *   away: { id, name, logo, score }
+ *   finished, winnerTeamId, winnerTeamName,
+ *   leagueName, scheduledAt, status,
+ *   home, away,
+ *   fullRaw
  * }
  */
 async function getMatchResult({ sportType, matchId, timezone }) {
@@ -38,85 +26,56 @@ async function getMatchResult({ sportType, matchId, timezone }) {
 
   switch (sportType) {
     case "NFL": {
-      // API-SPORTS (american-football) games endpoint returns an array
-      const ep = `/games?id=${encodeURIComponent(matchId)}${
+      const endpoint = `/games?id=${encodeURIComponent(matchId)}${
         timezone ? `&timezone=${encodeURIComponent(timezone)}` : ""
       }`;
-      const data = await fetchAmericanFootballData(ep);
-
+      const data = await fetchAmericanFootballData(endpoint);
       const game = Array.isArray(data?.response) ? data.response[0] : null;
-      if (!game) {
-        return { finished: false }; // unknown -> do not settle
-      }
+      if (!game) return { finished: false };
 
       const status = game?.status?.short || game?.status?.long || "";
-      const leagueName = game?.league?.name || "";
-      const scheduledAt =
-        game?.date?.date || game?.date?.timezone
-          ? new Date(game.date.date)
-          : undefined;
+      const finished =
+        ["FT", "AOT", "OT", "Match Finished"].includes(status) ||
+        (status && status.toUpperCase().includes("FT"));
+
+      const leagueName = game?.league?.name;
+      const scheduledAt = new Date(game?.date?.date);
 
       const home = {
         id: toStr(game?.teams?.home?.id),
         name: game?.teams?.home?.name,
         logo: game?.teams?.home?.logo,
-        score: game?.scores?.home?.total ?? game?.scores?.home ?? undefined,
+        score: game?.scores?.home?.total ?? null,
       };
       const away = {
         id: toStr(game?.teams?.away?.id),
         name: game?.teams?.away?.name,
         logo: game?.teams?.away?.logo,
-        score: game?.scores?.away?.total ?? game?.scores?.away ?? undefined,
+        score: game?.scores?.away?.total ?? null,
       };
 
-      // API often gives winner via "winner": true flags
-      const homeWinner =
-        game?.teams?.home?.winner === true ||
-        (typeof home.score === "number" &&
-          typeof away.score === "number" &&
-          home.score > away.score);
+      const homeWin =
+        home.score !== null && away.score !== null && home.score > away.score;
+      const awayWin =
+        home.score !== null && away.score !== null && away.score > home.score;
 
-      const awayWinner =
-        game?.teams?.away?.winner === true ||
-        (typeof home.score === "number" &&
-          typeof away.score === "number" &&
-          away.score > home.score);
-
-      const finished =
-        ["FT", "AOT", "OT", "FT_PEN", "FT_OT", "After ET", "Match Finished"].includes(
-          status
-        ) ||
-        (typeof home.score === "number" &&
-          typeof away.score === "number" &&
-          status && status.toUpperCase().includes("FT"));
-
-      const winnerTeamId = homeWinner ? home.id : awayWinner ? away.id : undefined;
-      const winnerTeamName = homeWinner
-        ? home.name
-        : awayWinner
-        ? away.name
-        : undefined;
+      const winnerTeamId = homeWin ? home.id : awayWin ? away.id : null;
+      const winnerTeamName = homeWin ? home.name : awayWin ? away.name : null;
 
       return {
         finished,
         winnerTeamId,
         winnerTeamName,
         leagueName,
-        scheduledAt: scheduledAt ? dayjs(scheduledAt).toDate() : undefined,
+        scheduledAt: scheduledAt ? dayjs(scheduledAt).toDate() : null,
         status,
         home,
         away,
+        fullRaw: game, // store full live JSON
       };
     }
 
-    // TODO: Add other sports adapters here without touching callers:
-    // case "NBA": { ... }
-    // case "SOCCER": { ... }
-    // case "CRICKET": { ... }
-    // etc.
-
     default:
-      // Unknown sport adapter -> do not settle
       return { finished: false };
   }
 }
