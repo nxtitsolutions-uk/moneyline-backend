@@ -39,7 +39,10 @@ async function getMatchResult({ sportType, matchId, timezone }) {
         (status && status.toUpperCase().includes("FT"));
 
       const leagueName = game?.league?.name;
-      const scheduledAt = new Date(game?.date?.date);
+      console.log("👉 NFL Game Scheduled At:", game);
+      // const scheduledAt = new Date(game?.date?.date);
+      const scheduledAt = game?.date?.date && !isNaN(new Date(game.date.date)) ? new Date(game.date.date) : null;
+
 
       const home = {
         id: toStr(game?.teams?.home?.id),
