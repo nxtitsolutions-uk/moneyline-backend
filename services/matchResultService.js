@@ -2,6 +2,10 @@
 // Retrieves normalized and full match data from live APIs (currently NFL)
 
 const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const tz = require("dayjs/plugin/timezone");
+dayjs.extend(utc);
+dayjs.extend(tz);
 
 let fetchAmericanFootballData;
 try {
@@ -39,10 +43,21 @@ async function getMatchResult({ sportType, matchId, timezone }) {
         (status && status.toUpperCase().includes("FT"));
 
       const leagueName = game?.league?.name;
-      console.log("👉 NFL Game Scheduled At:", game);
-      // const scheduledAt = new Date(game?.date?.date);
-      const scheduledAt = game?.date?.date && !isNaN(new Date(game.date.date)) ? new Date(game.date.date) : null;
 
+      console.log("-----------------Game Scheduled--------------");
+      console.log("Game object:", game);
+
+      // ✅ Safely combine date + time + timezone or fallback to timestamp
+      const scheduledAt =
+        game?.date?.date && game?.date?.time
+          ? new Date(
+              `${game.date.date}T${game.date.time}:00${
+                timezone ? dayjs().tz(timezone).format("Z") : ""
+              }`
+            )
+          : new Date(
+              game?.date?.timestamp ? game.date.timestamp * 1000 : Date.now()
+            );
 
       const home = {
         id: toStr(game?.teams?.home?.id),
