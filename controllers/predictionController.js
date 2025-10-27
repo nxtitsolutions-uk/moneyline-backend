@@ -67,19 +67,42 @@ exports.createOrUpsertPrediction = async (req, res) => {
 };
 
 /** Get prediction for specific match */
+// exports.getUserPrediction = async (req, res) => {
+//   try {
+//     const userId = req.user?._id;
+//     const { sportType, matchId } = req.params;
+//     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+//     const pred = await UserPrediction.findOne({
+//       user: userId,
+//       sportType,
+//       matchId: toStr(matchId),
+//     });
+
+//     if (!pred) return res.status(404).json({ error: "Not found" });
+//     return res.status(200).json({ prediction: pred });
+//   } catch (err) {
+//     return res.status(500).json({ error: err.message || "Server error" });
+//   }
+// };
 exports.getUserPrediction = async (req, res) => {
   try {
     const userId = req.user?._id;
     const { sportType, matchId } = req.params;
+    const timezone = req.query.timezone;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const pred = await UserPrediction.findOne({
+    let pred = await UserPrediction.findOne({
       user: userId,
       sportType,
       matchId: toStr(matchId),
     });
 
     if (!pred) return res.status(404).json({ error: "Not found" });
+
+    // ✅ Re-settle before returning (ensures real-time result)
+    pred = await settlePredictionIfPossible(pred, timezone);
+
     return res.status(200).json({ prediction: pred });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Server error" });
@@ -170,36 +193,79 @@ exports.listUserPredictions = async (req, res) => {
 };
 
 /** Internal helper: settle predictions using live data */
+/** Internal helper: settle predictions using live data */
 async function settlePredictionIfPossible(pred, timezone) {
-  const result = await getMatchResult({
-    sportType: pred.sportType,
-    matchId: pred.matchId,
-    timezone,
-  });
+  try {
+    const result = await getMatchResult({
+      sportType: pred.sportType,
+      matchId: pred.matchId,
+      timezone,
+    });
 
-  // Always refresh snapshot for UI
-  pred.providerSnapshot = {
-    leagueName: result.leagueName,
-    scheduledAt: result.scheduledAt,
-    status: result.status,
-    homeTeam: result.home,
-    awayTeam: result.away,
-  };
+    // --- Always refresh snapshot for UI ---
+    pred.providerSnapshot = {
+      leagueName: result.leagueName,
+      scheduledAt: result.scheduledAt,
+      status: result.status,
+      homeTeam: result.home,
+      awayTeam: result.away,
+    };
 
-  // Always keep the latest full JSON
-  pred.matchResult = result.fullRaw || result;
+    // --- Always keep the latest full JSON ---
+    pred.matchResult = result.fullRaw || result;
 
-  // If match ended, finalize correctness
-  if (result.finished && result.winnerTeamId) {
-    pred.settledAt = new Date();
-    pred.outcomeTeamId = result.winnerTeamId;
-    pred.outcomeTeamName = result.winnerTeamName;
-    pred.isCorrect = toStr(pred.selectedTeamId) === toStr(result.winnerTeamId);
+    // --- Normalize structure (for old or partial data) ---
+    const home = result.home || pred.matchResult?.teams?.home || {};
+    const away = result.away || pred.matchResult?.teams?.away || {};
+    const homeScore =
+      home.score ??
+      pred.matchResult?.scores?.home?.total ??
+      pred.matchResult?.game?.scores?.home?.total ??
+      null;
+    const awayScore =
+      away.score ??
+      pred.matchResult?.scores?.away?.total ??
+      pred.matchResult?.game?.scores?.away?.total ??
+      null;
+
+    // --- Determine match completion & winner ---
+    const finished =
+      result.finished ||
+      result.status?.toUpperCase().includes("FT") ||
+      result.status?.toUpperCase().includes("FINISHED");
+
+    let winnerTeamId = result.winnerTeamId || null;
+    let winnerTeamName = result.winnerTeamName || null;
+
+    if (!winnerTeamId && homeScore !== null && awayScore !== null) {
+      if (homeScore > awayScore) {
+        winnerTeamId = home.id;
+        winnerTeamName = home.name;
+      } else if (awayScore > homeScore) {
+        winnerTeamId = away.id;
+        winnerTeamName = away.name;
+      }
+    }
+
+    // --- If the match finished and winner is known, settle prediction ---
+    if (finished && winnerTeamId) {
+      pred.settledAt = pred.settledAt || new Date();
+      pred.outcomeTeamId = winnerTeamId;
+      pred.outcomeTeamName = winnerTeamName;
+      pred.isCorrect = toStr(pred.selectedTeamId) === toStr(winnerTeamId);
+    }
+
+    await pred.save();
+    return pred;
+  } catch (err) {
+    console.error(
+      `❌ Error settling prediction for match ${pred.matchId}:`,
+      err.message
+    );
+    return pred;
   }
-
-  await pred.save();
-  return pred;
 }
+
 
 /** Overview (accuracy + card list) */
 exports.getOverview = async (req, res) => {
