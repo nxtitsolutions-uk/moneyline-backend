@@ -293,17 +293,41 @@ exports.getOverview = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    // Always refresh data for accuracy
+    // ✅ Always refresh data before computing accuracy
     await Promise.all(preds.map((p) => settlePredictionIfPossible(p, timezone)));
 
-    // Compute accuracy
+    // --- Current window accuracy ---
     const [total, correct] = await Promise.all([
       UserPrediction.countDocuments(filter),
       UserPrediction.countDocuments({ ...filter, isCorrect: true }),
     ]);
-
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
 
+    // --- Previous window accuracy (for percentage change) ---
+    const prevFrom = from.subtract(windowDays, "day");
+    const prevFilter = {
+      user: userId,
+      createdAt: { $gte: prevFrom.toDate(), $lt: from.toDate() },
+    };
+    if (sportType) prevFilter.sportType = sportType;
+
+    const [prevTotal, prevCorrect] = await Promise.all([
+      UserPrediction.countDocuments(prevFilter),
+      UserPrediction.countDocuments({ ...prevFilter, isCorrect: true }),
+    ]);
+    const prevPct =
+      prevTotal > 0 ? Math.round((prevCorrect / prevTotal) * 100) : 0;
+
+    // --- Calculate change between current and previous window ---
+    const pctChange = Number((pct - prevPct).toFixed(1)); // e.g., +2.5 or -1.5
+    const trendUp = pctChange > 0;
+    const changeText = trendUp
+      ? `+${pctChange}%`
+      : pctChange < 0
+      ? `${pctChange}%`
+      : "0%";
+
+    // --- Build prediction cards ---
     const cards = preds.map((p) => {
       const snap = p.providerSnapshot || {};
       const home = snap.homeTeam || {};
@@ -328,17 +352,29 @@ exports.getOverview = async (req, res) => {
       };
     });
 
+    // --- Return final overview response ---
     return res.status(200).json({
       accuracy: {
         percent: pct,
+        change: pctChange,
+        changeText, // formatted as “+2.5%” or “-1.5%”
+        trend: trendUp ? "up" : pctChange < 0 ? "down" : "flat",
         status:
           pct >= 65 ? "Crushing It" : pct >= 50 ? "On Track" : "Keep Going",
+        label:
+          windowDays === 7
+            ? "this week"
+            : windowDays <= 31
+            ? "this month"
+            : `past ${windowDays} days`,
         windowDays,
       },
       pagination: { page, limit, count: cards.length },
       predictions: cards,
     });
   } catch (err) {
+    console.error("❌ Error in getOverview:", err);
     return res.status(500).json({ error: err.message || "Server error" });
   }
 };
+
