@@ -19,7 +19,7 @@ const toStr = (v) => (v === undefined || v === null ? "" : String(v));
 /**
  * Returns both normalized fields for UI and full JSON for archival.
  * {
- *   finished, winnerTeamId, winnerTeamName,
+ *   finished, winnerTeamId, winnerTeamName, isWon,
  *   leagueName, scheduledAt, status,
  *   home, away,
  *   fullRaw
@@ -80,10 +80,15 @@ async function getMatchResult({ sportType, matchId, timezone }) {
       const winnerTeamId = homeWin ? home.id : awayWin ? away.id : null;
       const winnerTeamName = homeWin ? home.name : awayWin ? away.name : null;
 
+      // 🏁 Add isWon flags to each team
+      home.isWon = homeWin;
+      away.isWon = awayWin;
+
       return {
         finished,
         winnerTeamId,
         winnerTeamName,
+        isWon: Boolean(winnerTeamId), // true if there is a winner
         leagueName,
         scheduledAt: scheduledAt ? dayjs(scheduledAt).toDate() : null,
         status,
