@@ -357,7 +357,7 @@ exports.getOverview = async (req, res) => {
       accuracy: {
         percent: pct,
         change: pctChange,
-        changeText, // formatted as “+2.5%” or “-1.5%”
+        // changeText, // formatted as “+2.5%” or “-1.5%”
         trend: trendUp ? "up" : pctChange < 0 ? "down" : "flat",
         status:
           pct >= 65 ? "Crushing It" : pct >= 50 ? "On Track" : "Keep Going",
@@ -370,7 +370,7 @@ exports.getOverview = async (req, res) => {
         windowDays,
       },
       pagination: { page, limit, count: cards.length },
-      predictions: cards,
+      // predictions: cards,
     });
   } catch (err) {
     console.error("❌ Error in getOverview:", err);

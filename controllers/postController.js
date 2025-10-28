@@ -31,23 +31,24 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// Get All Posts
-// Get All Posts (with Pagination)
+// Get All Posts (with Pagination + isMyPost flag)
 exports.getAllPosts = async (req, res) => {
   try {
-    // Query params
+    const userId = req.user?._id; // logged-in user
+
+    // Pagination query params
     const page = parseInt(req.query.page, 10) || 1;   // default page = 1
     const limit = parseInt(req.query.limit, 10) || 10; // default limit = 10
     const skip = (page - 1) * limit;
 
-    // Get total count for pagination metadata
+    // Count total posts
     const totalPosts = await Post.countDocuments({ deleted: false });
 
-    // Fetch posts with pagination
+    // Fetch posts with pagination and sort (newest first)
     const posts = await Post.find({ deleted: false })
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 }) // newest first
+      .sort({ createdAt: -1 })
       .populate({
         path: "user",
         select: "email role",
@@ -58,30 +59,31 @@ exports.getAllPosts = async (req, res) => {
       })
       .lean();
 
-    // Fetch comments & reactions for each post
+    // Add comments, reactions, and `isMyPost` flag
     const postsWithExtras = await Promise.all(
       posts.map(async (post) => {
-        const comments = await Comment.find({ post: post._id })
-          .populate({
-            path: "user",
-            select: "email role",
-            populate: {
-              path: "profile",
-              select: "name profilePicture username",
-            },
-          })
-          .lean();
-
-        const reactions = await Reaction.find({ post: post._id })
-          .populate({
-            path: "user",
-            select: "email role",
-            populate: {
-              path: "profile",
-              select: "name profilePicture username",
-            },
-          })
-          .lean();
+        const [comments, reactions] = await Promise.all([
+          Comment.find({ post: post._id })
+            .populate({
+              path: "user",
+              select: "email role",
+              populate: {
+                path: "profile",
+                select: "name profilePicture username",
+              },
+            })
+            .lean(),
+          Reaction.find({ post: post._id })
+            .populate({
+              path: "user",
+              select: "email role",
+              populate: {
+                path: "profile",
+                select: "name profilePicture username",
+              },
+            })
+            .lean(),
+        ]);
 
         return {
           ...post,
@@ -89,11 +91,12 @@ exports.getAllPosts = async (req, res) => {
           reactions,
           commentCount: comments.length,
           reactionCount: reactions.length,
+          isMyPost: userId && post.user?._id?.toString() === userId.toString(),
         };
       })
     );
 
-    // Response with metadata
+    // Respond with pagination metadata
     res.status(200).json({
       status: "success",
       pagination: {
@@ -109,6 +112,7 @@ exports.getAllPosts = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // Get Post by ID
