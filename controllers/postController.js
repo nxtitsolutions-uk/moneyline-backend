@@ -204,6 +204,7 @@ exports.deletePost = async (req, res) => {
   try {
     const postId = req.params.id;
     const userId = req.user?._id;
+    console.log("👉 Deleting Post ID:", postId, "by User ID:", userId);
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized: user not found" });
