@@ -203,21 +203,37 @@ exports.updatePost = async (req, res) => {
 exports.deletePost = async (req, res) => {
   try {
     const postId = req.params.id;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: user not found" });
+    }
+
     const post = await Post.findById(postId);
 
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    if (post.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Unauthorized" });
+    // Ensure the current user owns the post
+    if (post.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Unauthorized: cannot delete this post" });
     }
 
-    await post.remove();
+    // If your schema has a "deleted" flag, prefer soft delete:
+    // post.deleted = true;
+    // await post.save();
 
-    res.status(200).json({ message: "Post deleted successfully" });
+    // Otherwise, permanently delete it
+    await Post.findByIdAndDelete(postId);
+
+    res.status(200).json({ status: "success", message: "Post deleted successfully" });
   } catch (error) {
     console.error("❌ Error deleting post:", error);
-    res.status(500).json({ message: "Failed to delete post" });
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Failed to delete post",
+    });
   }
 };
+
