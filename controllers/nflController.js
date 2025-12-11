@@ -1,6 +1,8 @@
 // controllers/americanFootballController.js
 const { fetchAmericanFootballData } = require("../services/nflService");
 
+const DEFAULT_NFL_TIMEZONE = "America/New_York"; // Ensure API always responds in Eastern Time
+
 // ----------------- Utility -----------------
 exports.getTimezones = async (req, res) => {
   try {
@@ -92,7 +94,7 @@ exports.getInjuries = async (req, res) => {
 // ----------------- Games -----------------
 exports.getGames = async (req, res) => {
   try {
-    const { id, date, league, season, team, h2h, live, timezone } = req.query;
+    const { id, date, league, season, team, h2h, live } = req.query;
     let endpoint = `/games?`;
     if (id) endpoint += `id=${id}&`;
     if (date) endpoint += `date=${date}&`;
@@ -101,7 +103,7 @@ exports.getGames = async (req, res) => {
     if (team) endpoint += `team=${team}&`;
     if (h2h) endpoint += `h2h=${h2h}&`;
     if (live) endpoint += `live=${live}&`;
-    if (timezone) endpoint += `timezone=${timezone}&`;
+    endpoint += `timezone=${DEFAULT_NFL_TIMEZONE}&`;
     const data = await fetchAmericanFootballData(endpoint);
     res.json(data);
   } catch (err) {
