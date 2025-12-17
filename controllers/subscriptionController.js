@@ -51,59 +51,81 @@ exports.getAllSubscriptionPlans = async (req, res) => {
 exports.handlePurchase = async (req, res) => {
   try {
     const { deviceType, purchaseData } = req.body;
-    console.log(
-      "===========deviceType==============",
-      deviceType,
-      purchaseData
-    );
-
     const userId = req.user._id;
 
     if (!deviceType || !purchaseData) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
     }
 
     const user = await User.findById(userId);
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-    let receipt, productId, originalTransactionId;
+    let receipt;
+    let productId;
+    let originalTransactionId;
+    let subscriptionExpiryDate;
 
+    /* ---------- ANDROID ---------- */
     if (deviceType === "android") {
       receipt = await validateAndroidPurchase(purchaseData);
-      console.log("===========android receipt=========", receipt);
       productId = purchaseData.productId;
-    } else if (deviceType === "ios") {
-      receipt = await validateIOSPurchase(purchaseData);
-      const latestReceipt =
-        receipt.latest_receipt_info?.[0] || receipt.receipt?.in_app?.[0];
-      productId = latestReceipt?.product_id || "com.app.premium_plan";
-      originalTransactionId = latestReceipt?.original_transaction_id;
-    } else {
-      return res
-        .status(400)
-        .json({ success: false, message: "Unsupported device type" });
-    }
-    console.log("===========productId iOS=========", productId);
 
-    const plan = await SubscriptionPlan.findOne({ productId: productId });
-    console.log("===========plan=========", plan);
-    if (!plan)
+      const plan = await SubscriptionPlan.findOne({ productId });
+      if (!plan) {
+        return res.status(404).json({
+          success: false,
+          message: "No matching subscription plan found",
+        });
+      }
+
+      const start = new Date();
+      subscriptionExpiryDate = calculateExpiryDate(start, plan.duration);
+    }
+
+    /* ---------- IOS ---------- */
+    else if (deviceType === "ios") {
+      receipt = await validateIOSPurchase(purchaseData);
+
+      productId = receipt.productId;
+      originalTransactionId = receipt.originalTransactionId;
+
+      if (receipt.isExpired) {
+        return res.status(400).json({
+          success: false,
+          message: "Subscription has expired",
+        });
+      }
+
+      subscriptionExpiryDate = new Date(
+        Number(receipt.expiryTimeMillis)
+      );
+    }
+
+    else {
+      return res.status(400).json({
+        success: false,
+        message: "Unsupported device type",
+      });
+    }
+
+    const plan = await SubscriptionPlan.findOne({ productId });
+    if (!plan) {
       return res.status(404).json({
         success: false,
         message: "No matching subscription plan found",
       });
+    }
 
-    // Calculate expiry date based on plan duration
-    const subscriptionStartDate = new Date();
-    const subscriptionExpiryDate = calculateExpiryDate(subscriptionStartDate, plan.duration);
-
-    // Create a new subscription record
-    const subscriptionPayload = {
+    /* ---------- CREATE SUBSCRIPTION ---------- */
+    const subscription = await UserSubscription.create({
       userId,
       subscriptionId: plan._id,
       platform: deviceType,
@@ -112,34 +134,27 @@ exports.handlePurchase = async (req, res) => {
         deviceType === "android" ? purchaseData.purchaseToken : null,
       originalTransactionId: originalTransactionId || null,
       isActive: true,
-      subscriptionStartDate,
+      subscriptionStartDate: new Date(),
       subscriptionExpiryDate,
       lastValidatedAt: new Date(),
-    };
+    });
 
-    const subscription = await UserSubscription.create(subscriptionPayload);
-
-    // Optionally, mark previous subscriptions inactive (if you want only one active subscription)
     await UserSubscription.updateMany(
       { userId, _id: { $ne: subscription._id } },
       { isActive: false }
     );
 
-    // Update user’s current subscription info to reflect latest purchase
-    user.subscriptionExpiryDate = subscriptionExpiryDate;
-    user.deviceType = deviceType;
     user.isSubscribed = true;
     user.subscriptionType = plan.name;
+    user.subscriptionExpiryDate = subscriptionExpiryDate;
+    user.deviceType = deviceType;
 
     await user.save();
-    const updatedUser = await User.findById(userId);
 
     return res.status(200).json({
-      status: 200,
       success: true,
       message: "Subscription verified successfully",
       data: {
-        user: updatedUser,
         plan: plan.name,
         expires: subscriptionExpiryDate,
         platform: deviceType,
@@ -154,6 +169,7 @@ exports.handlePurchase = async (req, res) => {
     });
   }
 };
+
 
 // 4. Update a subscription plan (if needed)
 exports.updateSubscriptionPlan = async (req, res) => {
