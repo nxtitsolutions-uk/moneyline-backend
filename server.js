@@ -14,36 +14,73 @@ const stripeController = require('./controllers/stripeController');
 
 const app = express();
 
-// Ensure correct protocol behind Nginx/ALB
+/**
+ * ===============================
+ * Trust proxy (Nginx / ALB)
+ * ===============================
+ */
 app.set('trust proxy', true);
 
-// Middlewares
-app.use(cors());
+/**
+ * ===============================
+ * CORS (Swagger-safe)
+ * ===============================
+ */
+app.use(
+  cors({
+    origin: true, // allow same-origin + swagger
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+/**
+ * ===============================
+ * Logging
+ * ===============================
+ */
 app.use(morgan('dev'));
 
-// Stripe webhook must receive the raw body for signature verification
+/**
+ * ===============================
+ * Stripe Webhook (RAW body)
+ * ===============================
+ */
 app.post(
   '/api/v1/stripe/webhook',
   express.raw({ type: 'application/json' }),
   stripeController.handleWebhook
 );
 
-// Body parsers
+/**
+ * ===============================
+ * Body Parsers
+ * ===============================
+ */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// (Optional) Force redirect HTTP → HTTPS in production for ALL routes
+/**
+ * ===============================
+ * Force HTTPS (PRODUCTION ONLY)
+ * ===============================
+ */
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
-    const xfProto = req.headers['x-forwarded-proto'];
-    if (xfProto && xfProto !== 'https') {
+    const proto = req.headers['x-forwarded-proto'];
+    if (proto && proto !== 'https') {
       return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
     }
     next();
   });
 }
 
-// Base OpenAPI (no hardcoded servers)
+/**
+ * ===============================
+ * Swagger Base Definition
+ * ===============================
+ */
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
@@ -53,7 +90,11 @@ const swaggerDefinition = {
   },
   components: {
     securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
     },
   },
   security: [{ bearerAuth: [] }],
@@ -61,49 +102,67 @@ const swaggerDefinition = {
 
 const swaggerOptions = {
   swaggerDefinition,
-  apis: ['./routes/**/*.js'], // your JSDoc annotations
+  apis: ['./routes/**/*.js'],
 };
 
 const baseSpec = swaggerJsdoc(swaggerOptions);
 
-// Dynamic spec: FORCE https in production
+/**
+ * ===============================
+ * Dynamic Swagger Spec (HTTPS-safe)
+ * ===============================
+ */
 app.get('/api-docs.json', (req, res) => {
-  const isProd = process.env.NODE_ENV === 'development';
-  const forcedProtocol = isProd ? 'https' : null;
+  const isProd = process.env.NODE_ENV === 'production';
 
-  const protocol = forcedProtocol || req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.get('host'); // includes hostname:port
+  const protocol = isProd
+    ? 'https'
+    : req.headers['x-forwarded-proto'] || req.protocol;
+
+  const host = req.get('host');
   const basePath = process.env.API_BASE_PATH || '/api/v1';
 
-  const spec = {
+  res.json({
     ...baseSpec,
     servers: [
       { url: `${protocol}://${host}${basePath}` },
-      // Convenience local entry
       { url: `http://localhost:${process.env.PORT || 5000}${basePath}` },
     ],
-  };
-  res.json(spec);
+  });
 });
 
-// Swagger UI powered by the dynamic spec
+/**
+ * ===============================
+ * Swagger UI
+ * ===============================
+ */
 app.use(
   '/api-docs',
   swaggerUi.serve,
-  swaggerUi.setup(null, { swaggerOptions: { url: '/api-docs.json' } })
+  swaggerUi.setup(null, {
+    swaggerOptions: {
+      url: '/api-docs.json',
+    },
+  })
 );
 
-// Health/test route
+/**
+ * ===============================
+ * Routes
+ * ===============================
+ */
 app.get('/', (_req, res) => res.send('Hello Money Line Team!'));
-
-// Versioned API routing
 app.use('/api/v1', routes);
 
-// Connect DB + start server
+/**
+ * ===============================
+ * Start Server
+ * ===============================
+ */
 connectDB();
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT,'0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
 });
