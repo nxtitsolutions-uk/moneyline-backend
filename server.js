@@ -33,7 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // (Optional) Force redirect HTTP → HTTPS in production for ALL routes
-if (process.env.NODE_ENV) {
+if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     const xfProto = req.headers['x-forwarded-proto'];
     if (xfProto && xfProto !== 'https') {
