@@ -34,6 +34,8 @@
         default: "free",
       },
       subscriptionExpiryDate: { type: Date,default: null },
+      stripeCustomerId: { type: String, index: true, sparse: true },
+      stripeSubscriptionId: { type: String, index: true, sparse: true },
 
       // device type
       deviceType: {

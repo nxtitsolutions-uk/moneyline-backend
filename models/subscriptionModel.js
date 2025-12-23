@@ -5,7 +5,8 @@ const subscriptionSchema = new mongoose.Schema({
   price: { type: String, required: true },
   features: { type: [String], required: true }, 
   duration: { type: String, required: true },  
-  productId: { type: String, required: true }, 
+  productId: { type: String, required: true },
+  stripePriceId: { type: String, index: true, sparse: true },
   createdAt: { type: Date, default: Date.now }
 });
 

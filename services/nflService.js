@@ -16,7 +16,7 @@ async function fetchAmericanFootballData(endpoint) {
   try {
     const { data } = await api.get(endpoint);
     console.log("👉 Fetching NFL Data:", api.defaults.baseURL + endpoint);
-    console.log("=====================NFL API Response=====================", data);
+    // console.log("=====================NFL API Response=====================", data);
     return data;
   } catch (err) {
     console.error("NFL API Error:", err.response?.data || err.message);

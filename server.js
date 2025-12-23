@@ -10,19 +10,27 @@ const swaggerUi = require('swagger-ui-express');
 
 const connectDB = require('./config/db.js');
 const routes = require('./routes');
+const stripeController = require('./controllers/stripeController');
 
 const app = express();
 
 // Ensure correct protocol behind Nginx/ALB
 app.set('trust proxy', true);
 
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 // Middlewares
 app.use(cors());
 app.use(morgan('dev'));
+
+// Stripe webhook must receive the raw body for signature verification
+app.post(
+  '/api/v1/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeController.handleWebhook
+);
+
+// Body parsers
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // (Optional) Force redirect HTTP → HTTPS in production for ALL routes
 if (process.env.NODE_ENV === 'production') {
