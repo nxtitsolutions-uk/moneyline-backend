@@ -25,6 +25,8 @@ const nflRoutes = require('./nflRoute');
 const adminVoteRoute = require('./adminVoteRoute');
 const predictionRoute = require('./predictionRoute');
 const stripeRoutes = require('./stripeRoute');
+const analyticsRoutes = require('./analyticsRoute');
+const dashboardRoutes = require('./dashboardRoute');
 
 
 
@@ -59,5 +61,7 @@ router.use('/nfl', nflRoutes);
 router.use('/admin',authenticate, adminVoteRoute);
 router.use('/predictions', authenticate, predictionRoute);
 router.use('/stripe', stripeRoutes);
+router.use('/analytics', authenticate, analyticsRoutes);
+router.use('/dashboard', authenticate, dashboardRoutes);
 
 module.exports = router;
